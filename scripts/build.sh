@@ -4,7 +4,7 @@ task_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$task_root"
 swift build -c release
 task_bin="$(swift build -c release --show-bin-path)"
-task_app="$task_root/dist/CPAMC Menu Bar.app"
+task_app="$task_root/dist/Juice Bar.app"
 mkdir -p "$task_app/Contents/MacOS" "$task_app/Contents/Resources"
 cp "$task_bin/cpamc-menubar" "$task_app/Contents/MacOS/cpamc-menubar"
 cp "$task_bin/cpamc-quota-check" "$task_app/Contents/MacOS/cpamc-quota-check"
@@ -16,12 +16,12 @@ cat > "$task_app/Contents/Info.plist" <<'PLIST'
 <plist version="1.0"><dict>
   <key>CFBundleExecutable</key><string>cpamc-menubar</string>
   <key>CFBundleIdentifier</key><string>ai.notis.cpamc-menubar</string>
-  <key>CFBundleName</key><string>CPAMC Menu Bar</string>
-  <key>CFBundleDisplayName</key><string>CPAMC Menu Bar</string>
+  <key>CFBundleName</key><string>Juice Bar</string>
+  <key>CFBundleDisplayName</key><string>Juice Bar</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.1.0</string>
-  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleShortVersionString</key><string>0.2.0</string>
+  <key>CFBundleVersion</key><string>2</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSUIElement</key><true/>
   <key>CFBundleURLTypes</key><array><dict>

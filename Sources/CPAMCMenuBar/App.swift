@@ -29,8 +29,8 @@ final class MenuBarDelegate: NSObject, NSApplicationDelegate {
         if let button = statusItem.button {
             button.target = self
             button.action = #selector(togglePopover)
-            button.setAccessibilityLabel("CPAMC Menu Bar")
-            button.toolTip = "CPAMC · Made for Notis"
+            button.setAccessibilityLabel("Juice Bar")
+            button.toolTip = "Juice Bar · Made for Notis"
 
         }
         menu = StatusMenu(rootView: SubscriptionPanel(store: store),
@@ -55,7 +55,7 @@ final class MenuBarDelegate: NSObject, NSApplicationDelegate {
     private func updateIcon() {
         statusItem.button?.image = MenuIcon.image(store.iconMetrics, preferences: store.iconPreferences)
         statusItem.button?.toolTip = store.iconDescription
-        statusItem.button?.setAccessibilityLabel("CPAMC · " + store.iconDescription)
+        statusItem.button?.setAccessibilityLabel("Juice Bar · " + store.iconDescription)
     }
     @objc private func togglePopover() {
         if menu.isVisible { menu.dismiss() } else { showPopover() }

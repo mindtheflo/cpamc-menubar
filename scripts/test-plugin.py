@@ -35,7 +35,7 @@ def call(method):
 
 registration = call('plugin.register')['result']
 assert registration['capabilities'] == {'management_api': True}
-assert registration['metadata']['Name'] == 'CPAMC Menu Bar'
+assert registration['metadata']['Name'] == 'Juice Bar'
 assert call('plugin.reconfigure') == call('plugin.register')
 routes = call('management.register')['result']
 assert 'routes' not in routes
