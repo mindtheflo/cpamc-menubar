@@ -58,7 +58,7 @@ bash scripts/build.sh
 bash scripts/install.sh
 ```
 
-The repository also includes the built `dist/Juice Bar.app` artifact. Local builds are ad-hoc signed by default. To sign with an installed Apple Developer ID certificate, pass its exact identity:
+The repository also includes the built `dist/Juice Bar.app` and `dist/Juice Bar.app.zip` artifacts. The zip is the portable distribution copy and preserves executable permissions when extracted. Local builds are ad-hoc signed by default. To sign with an installed Apple Developer ID certificate, pass its exact identity:
 
 ```sh
 CODESIGN_IDENTITY="Developer ID Application: Your Company (TEAMID)" bash scripts/build.sh

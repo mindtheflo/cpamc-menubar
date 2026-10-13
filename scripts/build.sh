@@ -37,5 +37,8 @@ cat > "$task_app/Contents/Info.plist" <<'PLIST'
 </dict></plist>
 PLIST
 codesign --force --deep --options runtime --timestamp --sign "$task_sign_identity" "$task_app"
+task_zip="$task_root/dist/Juice Bar.app.zip"
+rm -f "$task_zip"
+ditto -c -k --norsrc --keepParent "$task_app" "$task_zip"
 bash "$task_root/scripts/build-plugin.sh"
-printf 'Built: %s\n' "$task_app"
+printf 'Built: %s\nArchive: %s\n' "$task_app" "$task_zip"

@@ -20,6 +20,9 @@ done
 osascript -e 'tell application id "ai.notis.cpamc-menubar" to quit' 2>/dev/null || true
 mkdir -p "$HOME/Applications"
 ditto "$task_source" "$task_dest"
+# GitHub's content API may normalize executable bits in tracked binary paths.
+# Restore the two executable entry points before launching the signed bundle.
+chmod 755 "$task_dest/Contents/MacOS/cpamc-menubar" "$task_dest/Contents/MacOS/cpamc-quota-check"
 if [ -d "$task_legacy" ]; then
   mkdir -p "$HOME/.Trash"
   mv "$task_legacy" "$HOME/.Trash/CPAMC Menu Bar-$(date +%Y%m%d-%H%M%S)-$$.app"
