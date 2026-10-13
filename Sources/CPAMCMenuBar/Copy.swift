@@ -8,6 +8,16 @@ enum Copy {
     static var locale: Locale { Locale(identifier: isFrench ? "fr_FR" : "en_US") }
     static func text(_ key: String) -> String { (isFrench ? fr[key] : en[key]) ?? en[key] ?? key }
     static let en = [
+        "iconSettings": "Menu bar icon", "iconPreview": "Icon preview", "orientation": "Orientation",
+        "vertical": "Vertical", "horizontal": "Horizontal", "iconAppearance": "Appearance",
+        "color": "Color", "monochrome": "Black & white", "iconShows": "Bars show",
+        "iconProviders": "OpenAI + Claude", "iconWindows": "Session + weekly", "provider": "Provider",
+        "openai": "OpenAI", "claude": "Claude",
+        "providersHint": "Each provider shows its best available account’s tighter session or weekly limit.",
+        "combinedLeft": "left",
+        "windowsHint": "OpenAI + Claude combined, out of 200% per bar. One best account per provider; missing readings stay unknown. This is a quota indicator, not a token or credit balance.",
+        "verticalOrder": "First bar on the left; second on the right.",
+        "horizontalOrder": "First bar on top; second underneath.",
         "accountEnabled": "Use this account", "accountToggleHint": "Allow this account to handle new requests.",
         "accountUpdateFailed": "The change could not be confirmed. Refresh to check the current state.",
         "accountUpdating": "Updating…",
@@ -43,6 +53,16 @@ enum Copy {
         "lastChecked": "Provider checked", "unknownError": "Check the local connection in Settings.",
     ]
     static let fr = [
+        "iconSettings": "Icône de la barre des menus", "iconPreview": "Aperçu de l’icône", "orientation": "Orientation",
+        "vertical": "Verticale", "horizontal": "Horizontale", "iconAppearance": "Apparence",
+        "color": "Couleur", "monochrome": "Noir et blanc", "iconShows": "Les barres indiquent",
+        "iconProviders": "OpenAI + Claude", "iconWindows": "Session + semaine", "provider": "Fournisseur",
+        "openai": "OpenAI", "claude": "Claude",
+        "providersHint": "Chaque fournisseur indique le quota le plus contraignant, session ou semaine, de son meilleur compte disponible.",
+        "combinedLeft": "restants",
+        "windowsHint": "OpenAI + Claude cumulés, sur 200 % par barre. Un meilleur compte par fournisseur ; toute valeur manquante reste inconnue. Ce quota n’est pas un solde de tokens ou de crédits.",
+        "verticalOrder": "Première barre à gauche, deuxième à droite.",
+        "horizontalOrder": "Première barre en haut, deuxième en dessous.",
         "accountEnabled": "Utiliser ce compte", "accountToggleHint": "Autoriser de nouvelles requêtes sur ce compte.",
         "accountUpdateFailed": "La modification n’a pas pu être confirmée. Actualise pour vérifier l’état actuel.",
         "accountUpdating": "Mise à jour…",

@@ -11,6 +11,21 @@ final class QuotaStore: ObservableObject {
     @Published var accountUpdateError: String?
     @Published var now = Date()
     @Published var configuration: Configuration
+    @Published var iconPreferences = IconPreferences.load() {
+        didSet { iconPreferences.save() }
+    }
+    var iconMetrics: [IconMetric] {
+        IconMetrics.bars(snapshot: snapshot, preferences: iconPreferences, at: now, offline: error != nil)
+    }
+    var iconDescription: String {
+        return iconMetrics.map { metric in
+            let value: String
+            if metric.capacity == 200, let left = metric.leftPercent {
+                value = "\(Int(left.rounded()))/200% " + Copy.text("combinedLeft")
+            } else { value = Copy.percent(metric.leftPercent) }
+            return Copy.text(metric.label) + ": " + value
+        }.joined(separator: " · ")
+    }
     let demo: Bool
     private var client: ProxyClient
     private var loop: Task<Void, Never>?

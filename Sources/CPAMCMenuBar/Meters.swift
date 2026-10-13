@@ -31,22 +31,28 @@ struct LevelCapsule: View {
 }
 
 enum MenuIcon {
-    // Same 24 × 22pt, 4pt bars, 2pt gap and runway colours as Notis Desktop.
-    static func image(_ summaries: [ProviderSummary], offline: Bool = false) -> NSImage {
-        let image = NSImage(size: NSSize(width: 24, height: 22), flipped: false) { rect in
-            let bars = summaries.isEmpty ? [nil] : summaries.map { Optional($0) }
-            let total = CGFloat(bars.count * 4 + (bars.count - 1) * 2)
-            let firstY = (22 - total) / 2
-            for (index, summary) in bars.enumerated() {
-                let y = firstY + CGFloat(bars.count - 1 - index) * 6
-                let track = NSBezierPath(roundedRect: NSRect(x: 3, y: y, width: 18, height: 4), xRadius: 2, yRadius: 2)
-                let tone = offline ? MeterTone.unknown : summary?.tone ?? .unknown
-                (tone == .out ? NSColor.systemRed : NSColor.secondaryLabelColor).withAlphaComponent(0.45).setFill()
-                track.fill()
-                if !offline, let left = summary?.leftPercent, left > 0 {
+    static func image(_ metrics: [IconMetric], preferences: IconPreferences, dark: Bool = false) -> NSImage {
+        let monochrome = preferences.appearance == .monochrome
+        let vertical = preferences.orientation == .vertical
+        let image = NSImage(size: NSSize(width: 24, height: 22), flipped: false) { _ in
+            for (index, metric) in metrics.prefix(2).enumerated() {
+                let rect = vertical
+                    ? NSRect(x: 4.5 + CGFloat(index) * 9, y: 2, width: 6, height: 18)
+                    : NSRect(x: 3, y: 12.5 - CGFloat(index) * 9, width: 18, height: 6)
+                let capsule = NSBezierPath(roundedRect: rect, xRadius: 3, yRadius: 3)
+                let ink = monochrome ? (dark ? NSColor.white : NSColor.black) : metric.tone.nativeColor
+                // Full-opacity ink. Empty and unknown retain an outline; the tooltip distinguishes them.
+                ink.setStroke()
+                capsule.lineWidth = 1
+                capsule.stroke()
+                if let left = metric.normalizedPercent, left > 0 {
+                    let fraction = CGFloat(min(100, max(0, left)) / 100)
+                    let fill = vertical
+                        ? NSRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height * fraction)
+                        : NSRect(x: rect.minX, y: rect.minY, width: rect.width * fraction, height: rect.height)
                     NSGraphicsContext.saveGraphicsState()
-                    NSBezierPath(rect: NSRect(x: 3, y: y, width: 18 * CGFloat(left / 100), height: 4)).addClip()
-                    tone.nativeColor.setFill(); track.fill()
+                    capsule.addClip()
+                    ink.setFill(); NSBezierPath(rect: fill).fill()
                     NSGraphicsContext.restoreGraphicsState()
                 }
             }

@@ -1,5 +1,7 @@
 # CPAMC Menu Bar
 
+<img src="assets/twin-meter.svg" width="96" alt="Vertical Twin Meter logo">
+
 **Your CPAMC subscriptions in the macOS menu bar. Made for Notis.**
 
 A native CPAMC add-on that uses the compact menu design from Notis Desktop: system typography, two stacked allowance bars, green/orange/red status, a per-account list, and individual quota details.
@@ -17,7 +19,18 @@ The add-on has two parts: a **native macOS companion** and a small **CLIProxyAPI
 - A **Use this account** toggle inside each subscription’s detail view. It changes that exact account in CPAMC, verifies the result, and leaves every other account untouched.
 - Explicit Start/Stop controls for a matching local CLIProxyAPI login service.
 
-Percentages are **not added across subscriptions**. The menu-bar icon shows the best account's tightest shared allowance for each provider, in Codex/Claude order. Details expose model-specific windows separately. An old reading or an elapsed reset is not presented as newly available quota.
+Percentages are **not added across subscription accounts**. By default, the menu-bar icon shows the best available account's tightest shared allowance for each provider, in OpenAI/Claude order. Details expose model-specific windows separately. An old reading or an elapsed reset is not presented as newly available quota.
+
+## Menu-bar icon preferences
+
+Open **Settings** for a live preview and automatically saved preferences:
+
+- **Vertical or horizontal** — two side-by-side gauges or two stacked gauges.
+- **Color or black & white** — quota colors or solid black/white ink that adapts to light/dark menu bars.
+- **OpenAI + Claude** — each provider's best available account, using its tighter session/weekly limit.
+- **Session + weekly** — sum OpenAI + Claude, out of 200% per window (100% per provider). One best available account per provider contributes both windows. This equal-weight quota indicator is not a combined token/credit balance. If either provider has no reading, the combined window stays unknown.
+
+The first metric is on the left (vertical) or top (horizontal). Disabled, stale and unavailable accounts do not contribute usable quota. Unreported limits and confirmed zero quota keep an empty outline; the tooltip distinguishes “No reading” from exhausted quota. The default is vertical, color, OpenAI + Claude. The app logo is the vertical **Twin Meter** design.
 
 ## Requirements
 
@@ -35,7 +48,7 @@ bash scripts/build.sh
 bash scripts/install.sh
 ```
 
-There is no standalone app window or Dock icon: the subscription panel is a transient popover anchored to the menu-bar icon.
+There is no standalone app window or Dock icon: the subscription panel is a compact, arrow-free dropdown anchored to the menu-bar icon. It closes on an outside click or Escape.
 
 The app installs into `~/Applications/CPAMC Menu Bar.app` and opens immediately. Its two allowance bars appear in the macOS menu bar. Click them to inspect subscriptions, or choose **Open CPAMC** to open the existing quota dashboard.
 

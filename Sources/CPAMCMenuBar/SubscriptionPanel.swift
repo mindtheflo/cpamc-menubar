@@ -37,7 +37,7 @@ struct SubscriptionPanel: View {
     var body: some View {
         VStack(spacing: 0) {
             if settings {
-                ConnectionSettings(store: store) { settings = false }
+                ConnectionSettings(store: store, back: { settings = false })
             } else if let selected, let account = store.snapshot?.accounts.first(where: { $0.id == selected }) {
                 detail(account)
             } else { overview }

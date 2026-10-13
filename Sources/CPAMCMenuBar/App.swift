@@ -19,8 +19,9 @@ struct CPAMCMenuBarApp {
 final class MenuBarDelegate: NSObject, NSApplicationDelegate {
     private var store: QuotaStore!
     private var statusItem: NSStatusItem!
-    private let popover = NSPopover()
+    private var menu: StatusMenu!
     private var observation: AnyCancellable?
+    private var appearanceObservation: NSKeyValueObservation?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -31,12 +32,13 @@ final class MenuBarDelegate: NSObject, NSApplicationDelegate {
             button.action = #selector(togglePopover)
             button.setAccessibilityLabel("CPAMC Menu Bar")
             button.toolTip = "CPAMC · Made for Notis"
+            appearanceObservation = button.observe(\.effectiveAppearance, options: [.new]) { [weak self] _, _ in
+                Task { @MainActor in self?.updateIcon() }
+            }
         }
-        popover.behavior = CommandLine.arguments.contains("--show-menu") ? .applicationDefined : .transient
-        let content = NSHostingController(rootView: SubscriptionPanel(store: store))
-        content.sizingOptions = [.preferredContentSize]
-        popover.contentViewController = content
-        popover.contentSize = NSSize(width: 360, height: 440)
+        menu = StatusMenu(rootView: SubscriptionPanel(store: store),
+                          button: statusItem.button!,
+                          staysOpen: CommandLine.arguments.contains("--show-menu"))
         observation = store.objectWillChange.sink { [weak self] _ in
             Task { @MainActor in self?.updateIcon() }
         }
@@ -54,16 +56,16 @@ final class MenuBarDelegate: NSObject, NSApplicationDelegate {
         }
     }
     private func updateIcon() {
-        statusItem.button?.image = MenuIcon.image(store.summaries, offline: store.error != nil)
+        let dark = statusItem.button?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        statusItem.button?.image = MenuIcon.image(store.iconMetrics, preferences: store.iconPreferences, dark: dark)
+        statusItem.button?.toolTip = store.iconDescription
+        statusItem.button?.setAccessibilityLabel("CPAMC · " + store.iconDescription)
     }
     @objc private func togglePopover() {
-        if popover.isShown { popover.performClose(nil) } else { showPopover() }
+        if menu.isVisible { menu.dismiss() } else { showPopover() }
     }
     private func showPopover() {
-        guard let button = statusItem?.button else { return }
-        NSApp.activate(ignoringOtherApps: true)
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        popover.contentViewController?.view.window?.makeKey()
+        menu.show()
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         showPopover()

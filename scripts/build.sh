@@ -8,6 +8,7 @@ task_app="$task_root/dist/CPAMC Menu Bar.app"
 mkdir -p "$task_app/Contents/MacOS" "$task_app/Contents/Resources"
 cp "$task_bin/cpamc-menubar" "$task_app/Contents/MacOS/cpamc-menubar"
 cp "$task_bin/cpamc-quota-check" "$task_app/Contents/MacOS/cpamc-quota-check"
+cp "$task_root/assets/AppIcon.icns" "$task_app/Contents/Resources/AppIcon.icns"
 cp "$task_root/LICENSE" "$task_app/Contents/Resources/LICENSE"
 cat > "$task_app/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -17,6 +18,7 @@ cat > "$task_app/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIdentifier</key><string>ai.notis.cpamc-menubar</string>
   <key>CFBundleName</key><string>CPAMC Menu Bar</string>
   <key>CFBundleDisplayName</key><string>CPAMC Menu Bar</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
   <key>CFBundleVersion</key><string>1</string>
