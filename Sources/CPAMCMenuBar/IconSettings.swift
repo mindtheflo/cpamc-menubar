@@ -2,14 +2,13 @@ import SwiftUI
 import QuotaCore
 
 struct IconSettings: View {
-    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var store: QuotaStore
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(Copy.text("iconSettings")).fontWeight(.semibold)
             HStack(spacing: 12) {
-                Image(nsImage: MenuIcon.image(store.iconMetrics, preferences: store.iconPreferences, dark: colorScheme == .dark))
-                    .renderingMode(.original)
+                Image(nsImage: MenuIcon.image(store.iconMetrics, preferences: store.iconPreferences))
+                    .renderingMode(store.iconPreferences.appearance == .monochrome ? .template : .original)
                     .foregroundStyle(.primary).frame(width: 24, height: 22)
                     .accessibilityLabel(Copy.text("iconPreview"))
                 Text(store.iconDescription).font(.system(size: 11)).foregroundStyle(.secondary)

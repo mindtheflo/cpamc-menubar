@@ -26,7 +26,7 @@ Percentages are **not added across subscription accounts**. By default, the menu
 Open **Settings** for a live preview and automatically saved preferences:
 
 - **Vertical or horizontal** — two side-by-side gauges or two stacked gauges.
-- **Color or black & white** — quota colors or solid black/white ink that adapts to light/dark menu bars.
+- **Color or black & white** — quota colors or native macOS template tint, matching neighboring menu-bar icons and adapting to light/dark backgrounds.
 - **OpenAI + Claude** — each provider's best available account, using its tighter session/weekly limit.
 - **Session + weekly** — sum OpenAI + Claude, out of 200% per window (100% per provider). One best available account per provider contributes both windows. This equal-weight quota indicator is not a combined token/credit balance. If one provider has no reading, the combined bar shows the known contribution as a lower bound (≥), still out of 200%, and names the unreported provider in the tooltip. Missing values never erase known allowance. Both missing means unknown, not zero.
 

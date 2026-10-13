@@ -31,7 +31,7 @@ struct LevelCapsule: View {
 }
 
 enum MenuIcon {
-    static func image(_ metrics: [IconMetric], preferences: IconPreferences, dark: Bool = false) -> NSImage {
+    static func image(_ metrics: [IconMetric], preferences: IconPreferences) -> NSImage {
         let monochrome = preferences.appearance == .monochrome
         let vertical = preferences.orientation == .vertical
         let image = NSImage(size: NSSize(width: 24, height: 22), flipped: false) { _ in
@@ -40,8 +40,9 @@ enum MenuIcon {
                     ? NSRect(x: 4.5 + CGFloat(index) * 9, y: 2, width: 6, height: 18)
                     : NSRect(x: 3, y: 12.5 - CGFloat(index) * 9, width: 18, height: 6)
                 let capsule = NSBezierPath(roundedRect: rect, xRadius: 3, yRadius: 3)
-                let ink = monochrome ? (dark ? NSColor.white : NSColor.black) : metric.tone.nativeColor
-                // Full-opacity ink. Empty and unknown retain an outline; the tooltip distinguishes them.
+                let ink = monochrome ? NSColor.black : metric.tone.nativeColor
+                // Opaque template mask lets macOS apply the same tint as neighboring status items.
+                // Empty and unknown retain an outline; the tooltip distinguishes them.
                 ink.setStroke()
                 capsule.lineWidth = 1
                 capsule.stroke()
@@ -58,7 +59,7 @@ enum MenuIcon {
             }
             return true
         }
-        image.isTemplate = false
+        image.isTemplate = monochrome
         return image
     }
 }

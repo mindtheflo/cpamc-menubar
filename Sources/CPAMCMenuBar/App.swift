@@ -21,7 +21,6 @@ final class MenuBarDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var menu: StatusMenu!
     private var observation: AnyCancellable?
-    private var appearanceObservation: NSKeyValueObservation?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -32,9 +31,7 @@ final class MenuBarDelegate: NSObject, NSApplicationDelegate {
             button.action = #selector(togglePopover)
             button.setAccessibilityLabel("CPAMC Menu Bar")
             button.toolTip = "CPAMC · Made for Notis"
-            appearanceObservation = button.observe(\.effectiveAppearance, options: [.new]) { [weak self] _, _ in
-                Task { @MainActor in self?.updateIcon() }
-            }
+
         }
         menu = StatusMenu(rootView: SubscriptionPanel(store: store),
                           button: statusItem.button!,
@@ -56,8 +53,7 @@ final class MenuBarDelegate: NSObject, NSApplicationDelegate {
         }
     }
     private func updateIcon() {
-        let dark = statusItem.button?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        statusItem.button?.image = MenuIcon.image(store.iconMetrics, preferences: store.iconPreferences, dark: dark)
+        statusItem.button?.image = MenuIcon.image(store.iconMetrics, preferences: store.iconPreferences)
         statusItem.button?.toolTip = store.iconDescription
         statusItem.button?.setAccessibilityLabel("CPAMC · " + store.iconDescription)
     }
