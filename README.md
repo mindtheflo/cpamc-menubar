@@ -58,6 +58,14 @@ bash scripts/build.sh
 bash scripts/install.sh
 ```
 
+The repository also includes the built `dist/Juice Bar.app` artifact. Local builds are ad-hoc signed by default. To sign with an installed Apple Developer ID certificate, pass its exact identity:
+
+```sh
+CODESIGN_IDENTITY="Developer ID Application: Your Company (TEAMID)" bash scripts/build.sh
+```
+
+The signed bundle is still subject to Apple's notarization and Gatekeeper checks; notarization is not run by this repository build.
+
 There is no standalone app window or Dock icon: the subscription panel is a compact, arrow-free dropdown anchored to the menu-bar icon. It closes on an outside click or Escape.
 
 The app installs into `~/Applications/Juice Bar.app` and opens immediately. Its two allowance bars appear in the macOS menu bar. Click them to inspect subscriptions, or choose **Open CPAMC** to open the existing quota dashboard.

@@ -2,6 +2,7 @@
 set -euo pipefail
 task_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$task_root"
+task_sign_identity="${CODESIGN_IDENTITY:--}"
 swift build -c release
 task_bin="$(swift build -c release --show-bin-path)"
 task_app="$task_root/dist/Juice Bar.app"
@@ -19,6 +20,8 @@ cat > "$task_app/Contents/Info.plist" <<'PLIST'
   <key>CFBundleName</key><string>Juice Bar</string>
   <key>CFBundleDisplayName</key><string>Juice Bar</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>CFBundleIconName</key><string>AppIcon</string>
+  <key>CFBundleIconFiles</key><array><string>AppIcon.icns</string></array>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.2.0</string>
   <key>CFBundleVersion</key><string>2</string>
@@ -33,6 +36,6 @@ cat > "$task_app/Contents/Info.plist" <<'PLIST'
   <key>NSHumanReadableCopyright</key><string>2026 Florian Pariset · MIT License</string>
 </dict></plist>
 PLIST
-codesign --force --deep --sign - "$task_app"
+codesign --force --deep --options runtime --timestamp --sign "$task_sign_identity" "$task_app"
 bash "$task_root/scripts/build-plugin.sh"
 printf 'Built: %s\n' "$task_app"

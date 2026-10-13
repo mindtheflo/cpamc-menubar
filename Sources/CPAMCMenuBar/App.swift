@@ -29,6 +29,9 @@ final class MenuBarDelegate: NSObject, NSApplicationDelegate {
         if let button = statusItem.button {
             button.target = self
             button.action = #selector(togglePopover)
+            button.imagePosition = .imageOnly
+            button.imageScaling = .scaleProportionallyDown
+            button.imageHugsTitle = true
             button.setAccessibilityLabel("Juice Bar")
             button.toolTip = "Juice Bar · Made for Notis"
 
