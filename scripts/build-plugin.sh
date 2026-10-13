@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 task_root="$(cd "$(dirname "$0")/.." && pwd)"
+task_sign_identity="${CODESIGN_IDENTITY:--}"
 mkdir -p "$task_root/.build/plugin" "$task_root/dist/plugin"
 python3 - "$task_root" <<'PY'
 import base64,json,sys
@@ -16,5 +17,5 @@ PY
 cc -std=c11 -Wall -Wextra -Werror -fvisibility=hidden -dynamiclib \
   -I "$task_root/.build/plugin" "$task_root/plugin/plugin.c" \
   -o "$task_root/dist/plugin/cpamc-menubar.dylib"
-codesign --force --sign - "$task_root/dist/plugin/cpamc-menubar.dylib"
+codesign --force --sign "$task_sign_identity" "$task_root/dist/plugin/cpamc-menubar.dylib"
 printf 'Built CPAMC plugin: %s\n' "$task_root/dist/plugin/cpamc-menubar.dylib"
