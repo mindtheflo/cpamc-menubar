@@ -97,7 +97,7 @@ struct SubscriptionPanel: View {
             ? Copy.text("lastKnown") + " · " + Copy.percent(window?.leftPercent) : Copy.percent(left)
         let highlighted = hovered == account.id && account.canInspect
         let renewal = Copy.duration(account.cooldownUntil.flatMap { $0 > store.now ? $0 : nil } ?? window?.resetsAt, now: store.now)
-        return Button { selected = account.id } label: {
+        return Button { store.accountUpdateError = nil; selected = account.id } label: {
             HStack(spacing: 10) {
                 if account.provider == .claude {
                     HStack(spacing: 3) {
@@ -136,6 +136,22 @@ struct SubscriptionPanel: View {
                     if let plan = account.plan { Text(plan).foregroundStyle(.secondary) }
                 }.frame(height: 29).padding(.horizontal, 10).contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityLabel(Copy.text("back"))
+            separator
+            HStack {
+                Text(Copy.text("accountEnabled"))
+                Spacer()
+                Toggle(Copy.text("accountEnabled"), isOn: Binding(
+                    get: { !account.disabled },
+                    set: { enabled in Task { await store.setAccountEnabled(account, enabled: enabled) } }
+                )).labelsHidden().toggleStyle(.switch).controlSize(.small)
+                    .disabled(store.busy || store.accountUpdating != nil)
+                if store.accountUpdating == account.id { ProgressView().controlSize(.mini).accessibilityLabel(Copy.text("accountUpdating")) }
+            }.padding(.horizontal, 10).padding(.vertical, 4)
+            note(Copy.text("accountToggleHint"))
+            if let updateError = store.accountUpdateError {
+                Text(updateError).font(.system(size: 11)).foregroundStyle(.red)
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+            }
             separator
             if account.disabled { note(Copy.text("disabled")) }
             ForEach(account.windows) { window in

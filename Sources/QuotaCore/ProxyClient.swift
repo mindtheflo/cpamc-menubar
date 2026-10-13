@@ -25,6 +25,34 @@ public actor ProxyClient {
         self.session = URLSession(configuration: c, delegate: NoRedirect(), delegateQueue: nil)
     }
 
+    // Injection is internal, for management-API contract tests only.
+    init(configuration: Configuration, session: URLSession) {
+        self.configuration = configuration
+        self.session = session
+    }
+
+    public func setAccountEnabled(_ account: SubscriptionAccount, enabled: Bool) async throws -> SubscriptionAccount {
+        let initial = try await management(path: "auth-files")
+        guard case .array(let records) = initial["files"],
+              let record = records.first(where: { $0["auth_index"].string == account.id }),
+              let current = QuotaParser.record(record, previous: account), current.provider == account.provider,
+              let name = record["name"].string, !name.isEmpty,
+              let disabled = record["disabled"].bool else { throw ProxyError.accountUpdate }
+        if disabled == !enabled { return current }
+        let body: JSONValue = .object(["name": .string(name), "auth_index": .string(account.id), "disabled": .bool(!enabled)])
+        var writeError: Error?
+        do { _ = try await management(path: "auth-files/status", body: body, method: "PATCH") }
+        catch { writeError = error }
+        // Reconcile even a lost PATCH response. Never blindly repeat a routing mutation.
+        let response = try await management(path: "auth-files")
+        guard let updated = response["files"].array.first(where: { $0["auth_index"].string == account.id }),
+              updated["disabled"].bool == !enabled,
+              let result = QuotaParser.record(updated, previous: account), result.provider == account.provider else {
+            throw writeError ?? ProxyError.accountUpdate
+        }
+        return result
+    }
+
     public func fetch(previous: QuotaSnapshot? = nil, force: Bool = false) async throws -> QuotaSnapshot {
         let now = Date()
         let response = try await management(path: "auth-files")
@@ -79,7 +107,7 @@ public actor ProxyClient {
         }
     }
 
-    // No generation, reset, billing, credential edit or routing mutation exists in this client.
+    // Quota routes are GET-only; the explicit account toggle is the sole credential-state mutation.
     private enum ReadRoute {
         case claudeUsage, claudeProfile, codexUsage
         var url: String {
@@ -108,7 +136,7 @@ public actor ProxyClient {
         do { return try JSONValue.decode(data) } catch { throw ProxyError.malformed }
     }
 
-    private func management(path: String, body: JSONValue? = nil) async throws -> JSONValue {
+    private func management(path: String, body: JSONValue? = nil, method: String = "POST") async throws -> JSONValue {
         let base = try configuration.validatedURL()
         guard let key = try? String(contentsOf: configuration.keyFileURL, encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty,
@@ -118,7 +146,7 @@ public actor ProxyClient {
         request.setValue("Bearer " + key, forHTTPHeaderField: "Authorization")
         request.cachePolicy = .reloadIgnoringLocalCacheData
         if let body {
-            request.httpMethod = "POST"; request.httpBody = try JSONEncoder().encode(body)
+            request.httpMethod = method; request.httpBody = try JSONEncoder().encode(body)
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
         let data: Data

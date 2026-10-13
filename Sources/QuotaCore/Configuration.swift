@@ -1,9 +1,10 @@
 import Foundation
 
 public enum ProxyError: Error, LocalizedError, Sendable {
-    case invalidEndpoint, missingKey, rejected(Int), malformed, upstream(Int), unavailable
+    case invalidEndpoint, missingKey, rejected(Int), malformed, upstream(Int), unavailable, accountUpdate
     public var errorDescription: String? {
         switch self {
+        case .accountUpdate: return "The account change could not be confirmed. Refresh to check its current state."
         case .invalidEndpoint: return "Use a loopback proxy URL, such as http://127.0.0.1:8317."
         case .missingKey: return "Choose the local management-key file in Settings."
         case .rejected(let code): return "The local proxy returned HTTP \(code). Check the connection in Settings."

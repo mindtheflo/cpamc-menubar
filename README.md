@@ -2,7 +2,7 @@
 
 **Your CPAMC subscriptions in the macOS menu bar. Made for Notis.**
 
-A native, read-only CPAMC add-on that uses the compact menu design from Notis Desktop: system typography, two stacked allowance bars, green/orange/red status, a per-account list, and individual quota details.
+A native CPAMC add-on that uses the compact menu design from Notis Desktop: system typography, two stacked allowance bars, green/orange/red status, a per-account list, and individual quota details.
 
 The add-on has two parts: a **native macOS companion** and a small **CLIProxyAPI C-ABI plugin** that registers a “Menu Bar · Made for Notis” resource in CPAMC. It is a third-party extension, not an official CPAMC/CLIProxyAPI product. CPAMC and the native app read the same local CLIProxyAPI account pool.
 
@@ -14,6 +14,7 @@ The add-on has two parts: a **native macOS companion** and a small **CLIProxyAPI
 - Unused Claude promotional reset counts, without consuming them.
 - Native light/dark appearance, English/French, a privacy switch, launch-at-login, and connection testing.
 - Separate Claude session and weekly bars, left to right.
+- A **Use this account** toggle inside each subscription’s detail view. It changes that exact account in CPAMC, verifies the result, and leaves every other account untouched.
 - Explicit Start/Stop controls for a matching local CLIProxyAPI login service.
 
 Percentages are **not added across subscriptions**. The menu-bar icon shows the best account's tightest shared allowance for each provider, in Codex/Claude order. Details expose model-specific windows separately. An old reading or an elapsed reset is not presented as newly available quota.
@@ -62,7 +63,7 @@ Configuration is stored in `~/Library/Application Support/CPAMC Menu Bar/config.
 
 The app reads `/v0/management/auth-files` every 30 seconds. Every five minutes (or on explicit Refresh, with a 30-second minimum between reads), it asks the proxy to perform **GET-only** Claude usage/profile and Codex usage queries via `/v0/management/api-call`. Provider OAuth tokens are substituted by the proxy using `$TOKEN$`; they are never read from credential files by this app.
 
-It makes **no model requests**, never buys/enables extra usage, never consumes promotional resets, never clears cooldowns, and never edits credentials or routing. The explicit Start/Stop buttons only control the matching local proxy process; stopping it interrupts agents using that proxy. The proxy continues running independently when this app quits. Service controls are available only when the existing `~/Library/LaunchAgents/com.flo.cliproxyapi.plist` points to the same CLIProxyAPI installation and port; unrelated services cannot be controlled. HTTP redirects are rejected to prevent the local management key from being forwarded elsewhere.
+It makes **no model requests**, never buys/enables extra usage, never consumes promotional resets, never clears cooldowns, and never edits tokens. The explicit account toggle updates only that account’s enabled/disabled state through the management API; it does not change routing strategy or other accounts. The explicit Start/Stop buttons only control the matching local proxy process; stopping it interrupts agents using that proxy. The proxy continues running independently when this app quits. Service controls are available only when the existing `~/Library/LaunchAgents/com.flo.cliproxyapi.plist` points to the same CLIProxyAPI installation and port; unrelated services cannot be controlled. HTTP redirects are rejected to prevent the local management key from being forwarded elsewhere.
 
 No analytics, cloud account, Notis sign-in, or third-party packages are required. Connection diagnostics never include keys or raw provider errors.
 
@@ -108,7 +109,7 @@ swift test
 swift run cpamc-menubar --demo
 ```
 
-The dependency-free `QuotaCore` target handles normalization, freshness, subscription aggregation and local proxy I/O. The SwiftUI target provides the native menu. Tests cover shared vs model-specific limits, cooldowns, stale/unknown readings, disabled accounts, quota resets, provider payload formats and loopback-only connections.
+The dependency-free `QuotaCore` target handles normalization, freshness, subscription aggregation and local proxy I/O. The SwiftUI target provides the native menu. Tests cover shared vs model-specific limits, cooldowns, stale/unknown readings, disabled accounts, quota resets, provider payload formats, loopback-only connections, exact-account toggling and lost-response reconciliation.
 
 Inspired by Notis Desktop's menu-bar usage design. This repository contains no Notis product code or third-party provider logos. See [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) and [CPAMC](https://github.com/router-for-me/Cli-Proxy-API-Management-Center) for the upstream projects.
 

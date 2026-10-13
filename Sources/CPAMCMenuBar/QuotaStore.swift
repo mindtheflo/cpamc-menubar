@@ -7,6 +7,8 @@ final class QuotaStore: ObservableObject {
     @Published var snapshot: QuotaSnapshot?
     @Published var busy = false
     @Published var error: String?
+    @Published var accountUpdating: String?
+    @Published var accountUpdateError: String?
     @Published var now = Date()
     @Published var configuration: Configuration
     let demo: Bool
@@ -47,6 +49,26 @@ final class QuotaStore: ObservableObject {
             error = nil
         } catch {
             self.error = (error as? ProxyError)?.localizedDescription ?? ProxyError.unavailable.localizedDescription
+        }
+    }
+    func setAccountEnabled(_ account: SubscriptionAccount, enabled: Bool) async {
+        guard !busy, accountUpdating == nil else { return }
+        busy = true; accountUpdating = account.id; accountUpdateError = nil
+        defer { busy = false; accountUpdating = nil }
+        do {
+            let updated: SubscriptionAccount
+            if demo {
+                var preview = account; preview.disabled = !enabled; updated = preview
+            } else {
+                updated = try await client.setAccountEnabled(account, enabled: enabled)
+            }
+            if let index = snapshot?.accounts.firstIndex(where: { $0.id == account.id }) {
+                snapshot?.accounts[index] = updated
+            }
+        } catch {
+            accountUpdateError = Copy.text("accountUpdateFailed")
+            // Recover the current display from a read, without replaying the mutation.
+            if !demo, let current = try? await client.fetch(previous: snapshot) { snapshot = current }
         }
     }
     func configure(_ new: Configuration) throws {

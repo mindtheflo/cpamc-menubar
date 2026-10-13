@@ -8,6 +8,9 @@ enum Copy {
     static var locale: Locale { Locale(identifier: isFrench ? "fr_FR" : "en_US") }
     static func text(_ key: String) -> String { (isFrench ? fr[key] : en[key]) ?? en[key] ?? key }
     static let en = [
+        "accountEnabled": "Use this account", "accountToggleHint": "Allow this account to handle new requests.",
+        "accountUpdateFailed": "The change could not be confirmed. Refresh to check the current state.",
+        "accountUpdating": "Updating…",
         "session": "Session", "weekly": "Weekly", "barLegend": "Session · Weekly",
         "launchAtLogin": "Launch at login", "loginApproval": "Allow in System Settings…",
         "loginError": "Could not update login settings. Check System Settings → Login Items.",
@@ -40,6 +43,9 @@ enum Copy {
         "lastChecked": "Provider checked", "unknownError": "Check the local connection in Settings.",
     ]
     static let fr = [
+        "accountEnabled": "Utiliser ce compte", "accountToggleHint": "Autoriser de nouvelles requêtes sur ce compte.",
+        "accountUpdateFailed": "La modification n’a pas pu être confirmée. Actualise pour vérifier l’état actuel.",
+        "accountUpdating": "Mise à jour…",
         "session": "Session", "weekly": "Semaine", "barLegend": "Session · Semaine",
         "launchAtLogin": "Lancer à l’ouverture de session", "loginApproval": "Autoriser dans les Réglages Système…",
         "loginError": "Impossible de modifier le démarrage. Vérifie Réglages Système → Ouverture.",
