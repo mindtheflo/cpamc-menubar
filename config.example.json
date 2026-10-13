@@ -1,0 +1,5 @@
+{
+  "proxyURL": "http://127.0.0.1:8317",
+  "managementKeyFile": "~/Library/Application Support/CLIProxyAPI/management-key",
+  "providerRefreshSeconds": 300
+}

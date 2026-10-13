@@ -1,0 +1,21 @@
+name: macOS build
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift test
+      - run: bash scripts/build.sh
+      - run: python3 scripts/test-plugin.py dist/plugin/cpamc-menubar.dylib
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CPAMC-Menu-Bar-macOS
+          path: dist/
