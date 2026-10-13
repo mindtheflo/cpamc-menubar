@@ -21,7 +21,11 @@ final class QuotaStore: ObservableObject {
         return iconMetrics.map { metric in
             let value: String
             if metric.capacity == 200, let left = metric.leftPercent {
-                value = "\(Int(left.rounded()))/200% " + Copy.text("combinedLeft")
+                let amount = "\(Int(left.rounded()))/200% " + Copy.text("combinedLeft")
+                if metric.isPartial {
+                    let missing = metric.missingProviders.map { $0 == .codex ? "OpenAI" : "Claude" }.joined(separator: " + ")
+                    value = "≥" + amount + " (" + missing + " " + Copy.text("notReported") + ")"
+                } else { value = amount }
             } else { value = Copy.percent(metric.leftPercent) }
             return Copy.text(metric.label) + ": " + value
         }.joined(separator: " · ")

@@ -23,13 +23,16 @@ public struct IconMetric: Sendable, Equatable {
     public let label: String
     public let leftPercent: Double?
     public let capacity: Double
+    public let missingProviders: [Provider]
+    public var isPartial: Bool { !missingProviders.isEmpty }
     public var normalizedPercent: Double? { leftPercent.map { $0 / capacity * 100 } }
     public var tone: MeterTone {
         guard let leftPercent = normalizedPercent else { return .unknown }
+        if leftPercent <= 0 && isPartial { return .unknown }
         return leftPercent <= 0 ? .out : leftPercent <= 10 ? .low : .ok
     }
-    public init(label: String, leftPercent: Double?, capacity: Double = 100) {
-        self.label = label; self.leftPercent = leftPercent; self.capacity = capacity
+    public init(label: String, leftPercent: Double?, capacity: Double = 100, missingProviders: [Provider] = []) {
+        self.label = label; self.leftPercent = leftPercent; self.capacity = capacity; self.missingProviders = missingProviders
     }
 }
 
@@ -52,8 +55,13 @@ public enum IconMetrics {
                           window.isFresh(at: now) else { return nil }
                     return window.leftPercent
                 }
-                let total = readings.allSatisfy { $0 != nil } ? readings.compactMap { $0 }.reduce(0, +) : nil
-                return IconMetric(label: id == "five_hour" ? "session" : "weekly", leftPercent: total, capacity: 200)
+                let known = readings.compactMap { $0 }
+                let missing = zip(Provider.allCases, readings).compactMap { provider, reading in reading == nil ? provider : nil }
+                // Missing quota is not zero and must not erase another provider's known allowance.
+                // A partial sum is a lower bound, still scaled against both providers' full capacity.
+                return IconMetric(label: id == "five_hour" ? "session" : "weekly",
+                                  leftPercent: known.isEmpty ? nil : known.reduce(0, +), capacity: 200,
+                                  missingProviders: missing)
             }
         }
     }

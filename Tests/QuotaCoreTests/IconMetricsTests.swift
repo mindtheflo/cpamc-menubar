@@ -23,11 +23,25 @@ final class IconMetricsTests: XCTestCase {
         XCTAssertEqual(bars.map(\.normalizedPercent),[50,65])
         XCTAssertEqual(bars.map(\.capacity),[200,200])
     }
-    func testMissingSessionIsUnknownNotInferredFromWeekly() {
+    func testMissingOpenAISessionPreservesClaudeAllowanceWithoutInventingOpenAIQuota() {
         var prefs = IconPreferences(); prefs.content = .windows
         let bars = IconMetrics.bars(snapshot:.init(accounts:[account("o",provider:.codex,weekly:55), account("c",session:60,weekly:25)]),preferences:prefs,at:now)
-        XCTAssertNil(bars[0].leftPercent)
+        XCTAssertEqual(bars[0].leftPercent,60)
+        XCTAssertEqual(bars[0].normalizedPercent,30)
+        XCTAssertEqual(bars[0].missingProviders,[.codex])
+        XCTAssertTrue(bars[0].isPartial)
         XCTAssertEqual(bars[1].leftPercent,80)
+        XCTAssertFalse(bars[1].isPartial)
+    }
+    func testPartialZeroDoesNotClaimBothProvidersAreExhausted() {
+        var prefs = IconPreferences(); prefs.content = .windows
+        let bars = IconMetrics.bars(snapshot:.init(accounts:[account("c",session:0,weekly:0)]),preferences:prefs,at:now)
+        XCTAssertEqual(bars[0].leftPercent,0)
+        XCTAssertTrue(bars[0].isPartial)
+        XCTAssertEqual(bars[0].tone,.unknown)
+        let empty = IconMetrics.bars(snapshot:nil,preferences:prefs,at:now)
+        XCTAssertNil(empty[0].leftPercent)
+        XCTAssertEqual(empty[0].missingProviders,[.codex,.claude])
     }
     func testDisabledPausedAndStaleAccountsCannotMakeIconLookAvailable() {
         var stale = account("stale",session:100,weekly:100)
