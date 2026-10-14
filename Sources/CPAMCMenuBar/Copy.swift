@@ -1,4 +1,5 @@
 import Foundation
+import QuotaCore
 
 enum Copy {
     static var language: String { UserDefaults.standard.string(forKey: "language") ?? "auto" }
@@ -10,6 +11,8 @@ enum Copy {
     static func text(_ key: String, _ value: String) -> String { text(key).replacingOccurrences(of: "%@", with: value) }
     /// A branch Juice Bar can update from, by its name in Settings.
     static func branch(_ name: String) -> String { text(name + "Branch") }
+    /// A pace, as it follows an amount left: “62% left, on track”.
+    static func pace(_ pace: Pace) -> String { text("pace" + pace.rawValue.capitalized) }
     static let en = [
         "iconSettings": "Menu bar icon", "iconPreview": "Icon preview", "orientation": "Orientation",
         "vertical": "Vertical", "horizontal": "Horizontal", "iconAppearance": "Appearance",
@@ -21,6 +24,11 @@ enum Copy {
         "windowsHint": "OpenAI + Claude combined, out of 200% per bar. One best account per provider. If a reading is missing, the bar shows the known minimum (≥), not zero. This is not a token or credit balance.",
         "verticalOrder": "First bar on the left; second on the right.",
         "horizontalOrder": "First bar on top; second underneath.",
+        "paceLegend": "Colors show the pace since each allowance renewed: green on track, orange on pace to run out before renewal, blue well under pace, red used up.",
+        "monochromeLegend": "Black & white shows only what’s left; the icon’s tooltip tells the pace.",
+        "paceOver": "on pace to run out before renewal", "paceSteady": "on track", "paceUnder": "well under pace",
+        "paceOverLine": "At this pace, runs out in %@", "paceSteadyLine": "On track · about %@ used by renewal",
+        "paceUnderLine": "Well under pace · about %@ used by renewal",
         "accountEnabled": "Use this account", "accountToggleHint": "Allow this account to handle new requests.",
         "accountUpdateFailed": "The change could not be confirmed. Refresh to check the current state.",
         "accountUpdating": "Updating…",
@@ -80,6 +88,11 @@ enum Copy {
         "windowsHint": "OpenAI + Claude cumulés, sur 200 % par barre. Un meilleur compte par fournisseur. Si une valeur manque, la barre indique le minimum connu (≥), pas zéro. Ce n’est pas un solde de tokens ou de crédits.",
         "verticalOrder": "Première barre à gauche, deuxième à droite.",
         "horizontalOrder": "Première barre en haut, deuxième en dessous.",
+        "paceLegend": "Les couleurs indiquent le rythme depuis le renouvellement de chaque quota : vert dans le rythme, orange épuisé avant le renouvellement à ce rythme, bleu bien en dessous du rythme, rouge épuisé.",
+        "monochromeLegend": "En noir et blanc, seul le niveau restant s’affiche ; l’infobulle de l’icône indique le rythme.",
+        "paceOver": "épuisé avant le renouvellement à ce rythme", "paceSteady": "dans le rythme", "paceUnder": "bien en dessous du rythme",
+        "paceOverLine": "À ce rythme, épuisé dans %@", "paceSteadyLine": "Dans le rythme · environ %@ utilisés d’ici le renouvellement",
+        "paceUnderLine": "Bien en dessous du rythme · environ %@ utilisés d’ici le renouvellement",
         "accountEnabled": "Utiliser ce compte", "accountToggleHint": "Autoriser de nouvelles requêtes sur ce compte.",
         "accountUpdateFailed": "La modification n’a pas pu être confirmée. Actualise pour vérifier l’état actuel.",
         "accountUpdating": "Mise à jour…",

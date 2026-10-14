@@ -15,12 +15,18 @@ enum QuotaCheck {
                     "provider": .string(account.provider.rawValue), "plan": account.plan.map(JSONValue.string) ?? .null,
                     "disabled": .bool(account.disabled), "proxy_unavailable": .bool(account.unavailable),
                     "left_percent": account.freshLeft(at: snapshot.fetchedAt).map(JSONValue.number) ?? .null,
+                    "pace": account.pace(at: snapshot.fetchedAt).map { .string($0.rawValue) } ?? .null,
                     "cooldown_until": account.cooldownUntil.map { .string(ISO8601DateFormatter().string(from: $0)) } ?? .null,
                     "read_error": account.readError.map(JSONValue.string) ?? .null,
-                    "windows": .array(account.windows.map { .object([
-                        "window": .string($0.id), "used_percent": $0.usedPercent.map(JSONValue.number) ?? .null,
-                        "resets_at": $0.resetsAt.map { .string(ISO8601DateFormatter().string(from: $0)) } ?? .null,
-                    ]) }),
+                    "windows": .array(account.windows.map { window in
+                        let estimate = window.pace(at: snapshot.fetchedAt)
+                        return .object([
+                            "window": .string(window.id), "used_percent": window.usedPercent.map(JSONValue.number) ?? .null,
+                            "resets_at": window.resetsAt.map { .string(ISO8601DateFormatter().string(from: $0)) } ?? .null,
+                            "pace": estimate.map { .string($0.pace.rawValue) } ?? .null,
+                            "used_percent_at_renewal": estimate.map { .number(($0.projectedUse * 10).rounded() / 10) } ?? .null,
+                        ])
+                    }),
                 ]
             }
             let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

@@ -7,6 +7,7 @@ struct IconSettings: View {
         SettingsSection(Copy.text("iconSettings"), footer: [
             Copy.text(store.iconPreferences.content == .providers ? "providersHint" : "windowsHint"),
             Copy.text(store.iconPreferences.orientation == .vertical ? "verticalOrder" : "horizontalOrder"),
+            Copy.text(store.iconPreferences.appearance == .color ? "paceLegend" : "monochromeLegend"),
         ].joined(separator: " ")) {
             HStack(spacing: 12) {
                 Image(nsImage: MenuIcon.image(store.iconMetrics, preferences: store.iconPreferences))

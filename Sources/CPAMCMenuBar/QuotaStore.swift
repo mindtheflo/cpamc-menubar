@@ -27,7 +27,8 @@ final class QuotaStore: ObservableObject {
                     value = "≥" + amount + " (" + missing + " " + Copy.text("notReported") + ")"
                 } else { value = amount }
             } else { value = Copy.percent(metric.leftPercent) }
-            return Copy.text(metric.label) + ": " + value
+            let pace = metric.tone == .unknown || metric.tone == .out ? nil : metric.pace.map { ", " + Copy.pace($0) }
+            return Copy.text(metric.label) + ": " + value + (pace ?? "")
         }.joined(separator: " · ")
     }
     let demo: Bool

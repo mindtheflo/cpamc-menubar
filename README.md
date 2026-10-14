@@ -4,7 +4,7 @@
 
 **Your CPAMC subscriptions in the macOS menu bar.**
 
-A native CPAMC add-on with a compact menu design: system typography, two stacked allowance bars, green/orange/red status, a per-account list, and individual quota details.
+A native CPAMC add-on with a compact menu design: system typography, two stacked allowance bars colored by your pace, a per-account list, and individual quota details.
 
 The add-on has two parts: a **native macOS companion** and a small **CLIProxyAPI C-ABI plugin** that registers a “Juice Bar” resource in CPAMC. It is a third-party extension, not an official CPAMC/CLIProxyAPI product. CPAMC and the native app read the same local CLIProxyAPI account pool.
 
@@ -32,6 +32,7 @@ Captured directly from the native app on macOS, cropped to the menu panel. These
 
 - Claude and Codex accounts connected to your local CPAMC/CLIProxyAPI instance, including disabled accounts. Disabled accounts show readable usage but never count as available; rows without a usage reading cannot be opened. Hover a provider’s header to hide or show its disabled accounts; the choice is remembered per provider.
 - Subscription plan, remaining allowance, five-hour/weekly windows, reset times, and local proxy cooldowns.
+- **Pace** for each session and weekly allowance: at the rate you have used it since it renewed, will it run out first? Green is on track, orange runs out before it renews, blue is well under (less than half used by then), red is used up. An allowance's details say when it runs out at this pace, or about how much of it you will have used by its renewal.
 - Paid credits and extra-usage availability separately from included subscription quotas.
 - Unused Claude promotional reset counts, without consuming them.
 - Native light/dark appearance, English/French, a privacy switch, launch-at-login, automatic updates and connection testing, grouped on one Settings page.
@@ -42,12 +43,14 @@ Captured directly from the native app on macOS, cropped to the menu panel. These
 
 Percentages are **not added across subscription accounts**. By default, the menu-bar icon shows the best available account's tightest shared allowance for each provider, in OpenAI/Claude order. Details expose model-specific windows separately. An old reading or an elapsed reset is not presented as newly available quota.
 
+Pace is the average rate since an allowance renewed, carried on to its renewal. Until about a quarter of the window has passed, the estimate leans on a moderate pace, so one early burst or a quiet start does not decide it. An account or icon bar is orange if any of its shared allowances is on pace to run out, and blue only if all of them are well under. Without a renewal time, the color follows the level instead: orange at 10% left or less.
+
 ## Menu-bar icon preferences
 
 Open **Settings** for a live preview and automatically saved preferences:
 
 - **Vertical or horizontal** — two side-by-side gauges or two stacked gauges.
-- **Color or black & white** — quota colors or native macOS template tint, matching neighboring menu-bar icons and adapting to light/dark backgrounds.
+- **Color or black & white** — pace colors or native macOS template tint, matching neighboring menu-bar icons and adapting to light/dark backgrounds. In black & white, the icon's tooltip still tells the pace.
 - **OpenAI + Claude** — each provider's best available account, using its tighter session/weekly limit.
 - **Session + weekly** — sum OpenAI + Claude, out of 200% per window (100% per provider). One best available account per provider contributes both windows. This equal-weight quota indicator is not a combined token/credit balance. If one provider has no reading, the combined bar shows the known contribution as a lower bound (≥), still out of 200%, and names the unreported provider in the tooltip. Missing values never erase known allowance. Both missing means unknown, not zero.
 
@@ -117,7 +120,7 @@ No analytics, cloud account, sign-in, or third-party packages are required. Conn
 swift run cpamc-quota-check
 ```
 
-This prints a live, redacted quota snapshot and exits. Use `--show-names` only when you intentionally want account names in your terminal. Disabled accounts are queried read-only too; a failed reading leaves the account disabled and never makes it available for routing. `cpamc-menubar --demo` uses fictional labels and no network calls, for screenshots/UI review.
+This prints a live, redacted quota snapshot, with each allowance's pace and projected use by its renewal, and exits. Use `--show-names` only when you intentionally want account names in your terminal. Disabled accounts are queried read-only too; a failed reading leaves the account disabled and never makes it available for routing. `cpamc-menubar --demo` uses fictional labels and no network calls, for screenshots/UI review.
 
 ## CPAMC plugin integration
 
@@ -153,7 +156,7 @@ swift test
 swift run cpamc-menubar --demo
 ```
 
-The dependency-free `QuotaCore` target handles normalization, freshness, subscription aggregation, local proxy I/O and source updates. The SwiftUI target provides the native menu. Tests cover shared vs model-specific limits, cooldowns, stale/unknown readings, disabled accounts, quota resets, provider payload formats, loopback-only connections, exact-account toggling, lost-response reconciliation, and updates built from a local repository.
+The dependency-free `QuotaCore` target handles normalization, freshness, subscription aggregation, local proxy I/O and source updates. The SwiftUI target provides the native menu. Tests cover shared vs model-specific limits, pace, cooldowns, stale/unknown readings, disabled accounts, quota resets, provider payload formats, loopback-only connections, exact-account toggling, lost-response reconciliation, and updates built from a local repository.
 
 ### Releasing
 
