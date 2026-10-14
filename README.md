@@ -1,12 +1,22 @@
 # Juice Bar
 
-<img src="assets/juice-bar-wordmark.svg" width="480" alt="Juice Bar — Made for Notis">
+<img src="assets/juice-bar-wordmark.svg" width="480" alt="Juice Bar">
 
-**Your CPAMC subscriptions in the macOS menu bar. Made for Notis.**
+**Your CPAMC subscriptions in the macOS menu bar.**
 
-A native CPAMC add-on that uses the compact menu design from Notis Desktop: system typography, two stacked allowance bars, green/orange/red status, a per-account list, and individual quota details.
+A native CPAMC add-on with a compact menu design: system typography, two stacked allowance bars, green/orange/red status, a per-account list, and individual quota details.
 
-The add-on has two parts: a **native macOS companion** and a small **CLIProxyAPI C-ABI plugin** that registers a “Juice Bar · Made for Notis” resource in CPAMC. It is a third-party extension, not an official CPAMC/CLIProxyAPI product. CPAMC and the native app read the same local CLIProxyAPI account pool.
+The add-on has two parts: a **native macOS companion** and a small **CLIProxyAPI C-ABI plugin** that registers a “Juice Bar” resource in CPAMC. It is a third-party extension, not an official CPAMC/CLIProxyAPI product. CPAMC and the native app read the same local CLIProxyAPI account pool.
+
+## Install
+
+Paste this into Claude Code, Codex or another coding agent on your Mac:
+
+```text
+Install this: https://raw.githubusercontent.com/mindtheflo/juice-bar/stable/INSTALL.md
+```
+
+The agent follows [INSTALL.md](INSTALL.md): it downloads the latest release, builds Juice Bar from source, installs it in `~/Applications`, starts it at login and checks the connection to CPAMC. It never reads your management key. From then on, Juice Bar [updates itself](#updates). To do it yourself, see [Build and install](#build-and-install).
 
 ## Screenshots
 
@@ -20,11 +30,12 @@ Captured directly from the native app on macOS, cropped to the menu panel. These
 
 ## What it shows
 
-- Claude and Codex accounts connected to your local CPAMC/CLIProxyAPI instance, including disabled accounts. Disabled accounts show readable usage but never count as available; rows without a usage reading cannot be opened.
+- Claude and Codex accounts connected to your local CPAMC/CLIProxyAPI instance, including disabled accounts. Disabled accounts show readable usage but never count as available; rows without a usage reading cannot be opened. Hover a provider’s header to hide or show its disabled accounts; the choice is remembered per provider.
 - Subscription plan, remaining allowance, five-hour/weekly windows, reset times, and local proxy cooldowns.
 - Paid credits and extra-usage availability separately from included subscription quotas.
 - Unused Claude promotional reset counts, without consuming them.
-- Native light/dark appearance, English/French, a privacy switch, launch-at-login, and connection testing.
+- Native light/dark appearance, English/French, a privacy switch, launch-at-login, automatic updates and connection testing, grouped on one Settings page.
+- Menu-like behavior: closing the menu discards the open page, selection and unsaved edits, so it always reopens on the overview.
 - Separate Claude session and weekly bars, left to right.
 - A **Use this account** toggle inside each subscription’s detail view. It changes that exact account in CPAMC, verifies the result, and leaves every other account untouched.
 - Explicit Start/Stop controls for a matching local CLIProxyAPI login service.
@@ -54,29 +65,29 @@ The first metric is on the left (vertical) or top (horizontal). Disabled, stale 
 git clone https://github.com/mindtheflo/juice-bar.git
 cd juice-bar
 swift test
-bash scripts/build.sh
 bash scripts/install.sh
 ```
 
-The repository also includes the built `dist/Juice Bar.app` and `dist/Juice Bar.app.zip` artifacts. The zip is the portable distribution copy and preserves executable permissions when extracted. Local builds are ad-hoc signed by default. To sign with an installed Apple Developer ID certificate, pass its exact identity:
+The installer builds the app from source into `.build/app`, replaces any earlier Juice Bar in `~/Applications/Juice Bar.app`, keeps your settings and opens it. Add `--login` to start Juice Bar at login, or turn on **Launch at login** in Settings. A build of `nightly`, the default branch, updates itself once the branch it follows includes its commit: `stable`, unless you choose **Nightly** in **Settings › Updates**. A build with uncommitted changes never does.
+
+An app you build yourself is never quarantined, so it opens without Apple notarization. Local builds are ad-hoc signed; to sign with your own Developer ID certificate, pass its identity:
 
 ```sh
-CODESIGN_IDENTITY="Developer ID Application: Your Company (TEAMID)" bash scripts/build.sh
+CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" bash scripts/install.sh
 ```
 
-The signed bundle is still subject to Apple's notarization and Gatekeeper checks; notarization is not run by this repository build.
+`bash scripts/build.sh` writes the distribution copies to `dist/`: `Juice Bar.app`, `Juice Bar.app.zip` and the CPAMC plugin. The repository includes them, signed but not notarized: a copy downloaded with a browser is quarantined and blocked by Gatekeeper, so prefer building from source.
 
-There is no standalone app window or Dock icon: the subscription panel is a compact, arrow-free dropdown anchored to the menu-bar icon. It closes on an outside click or Escape.
+There is no standalone app window or Dock icon: the subscription panel is a compact, arrow-free dropdown anchored to the menu-bar icon. It closes on an outside click or Escape. Its two allowance bars appear in the macOS menu bar. Click them to inspect subscriptions, or choose **Open CPAMC** to open the existing quota dashboard.
 
-The app installs into `~/Applications/Juice Bar.app` and opens immediately. Its two allowance bars appear in the macOS menu bar. Click them to inspect subscriptions, or choose **Open CPAMC** to open the existing quota dashboard.
+## Updates
 
-Enable **Launch at login** in Settings, or install with:
+Juice Bar updates itself from source, so it needs no notarization or update server. Once a day it asks GitHub for the latest commit of the branch it follows: `stable` for releases, or `nightly` for every change as soon as it is merged. When there is a new one, it fetches it into `~/Library/Application Support/Juice Bar`, builds it with that commit's `scripts/build.sh` and the running app's signing identity, and checks the result: commit, app identifier, signature and team. The new version replaces the app while its menu is closed, right away or as soon as you close it, and reopens in the background. Settings and the login item are kept.
 
-```sh
-bash scripts/install.sh --login
-```
-
-The local build is ad-hoc signed, not notarized with an Apple distribution certificate. Build from source on your Mac; signing/notarization for downloadable releases is not configured.
+- Choose the branch in **Settings › Updates**, which also shows the state, the version and the commit it was built from. A new branch is checked right away.
+- Only a clean build is replaced, and only by a later commit of its branch: a withdrawn release is never replaced by an older or different commit, and after switching from Nightly back to Stable the app keeps its version until Stable includes it.
+- Turn off **Update automatically** to update only with **Check now** and **Install**.
+- Updating needs the Xcode Command Line Tools. The source and build cache use about 90 MB; `update.log` in the same folder records the last updates.
 
 ## Connect your CPAMC instance
 
@@ -88,7 +99,7 @@ The default connection is `http://127.0.0.1:8317`, with the key read from:
 
 Choose **Settings…** in the menu to change the URL or select an existing key file. Only loopback connections are accepted. The key remains in that file; this app does not copy credentials, log response bodies, or package secrets.
 
-**Upgrading from CPAMC Menu Bar:** Juice Bar keeps the same bundle identity, plugin ID and URL scheme so your preferences and CPAMC integration continue to work. The installer moves only the old, verified app bundle to Trash; it keeps your configuration.
+**Upgrading from an earlier build or CPAMC Menu Bar:** since 0.3.0, the app identifier is `io.github.mindtheflo.juice-bar`. The installer quits the earlier app, copies its preferences to the new identifier and replaces it; an old `CPAMC Menu Bar.app` is moved to Trash. The configuration file, plugin ID and URL scheme are unchanged. Launch at login is reset by the new identifier: turn it back on in Settings or install with `--login`. Menu-bar managers such as Bartender may need the icon placed again.
 
 Configuration is stored in `~/Library/Application Support/CPAMC Menu Bar/config.json`. A key-file path is stored, not the key itself. `config.example.json` shows the supported fields.
 
@@ -98,7 +109,7 @@ The app reads `/v0/management/auth-files` every 30 seconds. Every five minutes (
 
 It makes **no model requests**, never buys/enables extra usage, never consumes promotional resets, never clears cooldowns, and never edits tokens. The explicit account toggle updates only that account’s enabled/disabled state through the management API; it does not change routing strategy or other accounts. The explicit Start/Stop buttons only control the matching local proxy process; stopping it interrupts agents using that proxy. The proxy continues running independently when this app quits. Service controls are available only when the existing `~/Library/LaunchAgents/com.flo.cliproxyapi.plist` points to the same CLIProxyAPI installation and port; unrelated services cannot be controlled. HTTP redirects are rejected to prevent the local management key from being forwarded elsewhere.
 
-No analytics, cloud account, Notis sign-in, or third-party packages are required. Connection diagnostics never include keys or raw provider errors.
+No analytics, cloud account, sign-in, or third-party packages are required. Connection diagnostics never include keys or raw provider errors.
 
 ## Diagnostics
 
@@ -110,7 +121,7 @@ This prints a live, redacted quota snapshot and exits. Use `--show-names` only w
 
 ## CPAMC plugin integration
 
-The build also produces `dist/plugin/cpamc-menubar.dylib` for the current Mac architecture. Copy it into your CLIProxyAPI plugin directory, then enable only `cpamc-menubar` in your existing plugin configuration:
+The build also produces `plugin/cpamc-menubar.dylib` for the current Mac architecture, next to the app (`.build/app/plugin/` after `install.sh`, `dist/plugin/` after `build.sh`). Copy it into your CLIProxyAPI plugin directory, then enable only `cpamc-menubar` in your existing plugin configuration:
 
 ```yaml
 plugins:
@@ -121,7 +132,7 @@ plugins:
       enabled: true
 ```
 
-Preserve any existing plugin settings. The plugin uses CLIProxyAPI's stable C ABI (version 1), and registers only a management resource: no model, routing, credential, quota or interception hooks. CPAMC lists its “Juice Bar · Made for Notis” page in the plugin menu. Its resource is available at `/v0/resource/plugins/cpamc-menubar/menubar` and links to the installed native app, this repository and the existing quota dashboard. The resource page never reads keys or account data.
+Preserve any existing plugin settings. The plugin uses CLIProxyAPI's stable C ABI (version 1), and registers only a management resource: no model, routing, credential, quota or interception hooks. CPAMC lists its “Juice Bar” page in the plugin menu. Its resource is available at `/v0/resource/plugins/cpamc-menubar/menubar` and links to the installed native app, this repository and the existing quota dashboard. The resource page never reads keys or account data.
 
 The native companion works even when you do not install the dashboard plugin. Disabling/removing this plugin does not stop the companion or the proxy.
 
@@ -131,7 +142,7 @@ The native companion works even when you do not install the dashboard plugin. Di
 bash scripts/uninstall.sh
 ```
 
-Only this companion and its optional login item are removed. CPAMC, CLIProxyAPI, Notis, all credentials and routing remain untouched. Local settings are retained.
+Only this companion, its optional login item and its update cache are removed. CPAMC, CLIProxyAPI, all credentials and routing remain untouched. Local settings are retained.
 
 If you installed the dashboard integration, disable/remove `cpamc-menubar` from CPAMC's Plugins page separately.
 
@@ -142,9 +153,19 @@ swift test
 swift run cpamc-menubar --demo
 ```
 
-The dependency-free `QuotaCore` target handles normalization, freshness, subscription aggregation and local proxy I/O. The SwiftUI target provides the native menu. Tests cover shared vs model-specific limits, cooldowns, stale/unknown readings, disabled accounts, quota resets, provider payload formats, loopback-only connections, exact-account toggling and lost-response reconciliation.
+The dependency-free `QuotaCore` target handles normalization, freshness, subscription aggregation, local proxy I/O and source updates. The SwiftUI target provides the native menu. Tests cover shared vs model-specific limits, cooldowns, stale/unknown readings, disabled accounts, quota resets, provider payload formats, loopback-only connections, exact-account toggling, lost-response reconciliation, and updates built from a local repository.
 
-Inspired by Notis Desktop's menu-bar usage design. This repository contains no Notis product code or third-party provider logos. See [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) and [CPAMC](https://github.com/router-for-me/Cli-Proxy-API-Management-Center) for the upstream projects.
+### Releasing
+
+`nightly` is the development branch, where pull requests are merged; `stable` is the release branch installed apps follow by default. To release, fast-forward `stable` to a tested commit of `nightly`:
+
+```sh
+git push origin nightly:stable
+```
+
+No tag is needed: an installed app updates when its branch moves past the commit it was built from. The version in `scripts/build.sh` and `plugin/plugin.c` is only shown in Settings. Protect both branches on GitHub (no force-push or deletion, restricted pushers to `stable`): installed apps build whatever they point to.
+
+This repository contains no third-party provider logos. See [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) and [CPAMC](https://github.com/router-for-me/Cli-Proxy-API-Management-Center) for the upstream projects.
 
 ## License
 

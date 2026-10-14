@@ -10,14 +10,18 @@ private final class MenuPanel: NSPanel {
 @MainActor
 final class StatusMenu {
     private let panel: MenuPanel
+    private let root: AnyView
     private let content: NSHostingController<AnyView>
     private weak var button: NSStatusBarButton?
     private let staysOpen: Bool
+    private var isOpen = false
     private var sizeObservation: NSKeyValueObservation?
     private var globalMonitor: Any?
     private var localMonitor: Any?
     private var resignObserver: NSObjectProtocol?
     var isVisible: Bool { panel.isVisible }
+    /// Called after the menu closes.
+    var onClose: (() -> Void)?
 
     init<Content: View>(rootView: Content, button: NSStatusBarButton, staysOpen: Bool) {
         self.button = button
@@ -29,9 +33,11 @@ final class StatusMenu {
         panel.hasShadow = true
         panel.level = .popUpMenu
         panel.collectionBehavior = [.transient, .fullScreenAuxiliary, .moveToActiveSpace]
-        content = NSHostingController(rootView: AnyView(rootView
+        let root = AnyView(rootView
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 9))
-            .clipShape(RoundedRectangle(cornerRadius: 9))))
+            .clipShape(RoundedRectangle(cornerRadius: 9)))
+        self.root = root
+        content = NSHostingController(rootView: AnyView(root.id(UUID())))
         content.sizingOptions = [.preferredContentSize]
         panel.contentViewController = content
         sizeObservation = content.observe(\.preferredContentSize, options: [.new]) { [weak self] _, _ in
@@ -48,16 +54,21 @@ final class StatusMenu {
 
     func show() {
         guard button?.window != nil else { return }
+        isOpen = true
         NSApp.activate(ignoringOtherApps: true)
         position()
         panel.makeKeyAndOrderFront(nil)
         button?.highlight(true)
         guard !staysOpen, localMonitor == nil else { return }
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            Task { @MainActor in self?.dismiss() }
+            Task { @MainActor in
+                guard NSApp.modalWindow == nil else { return }
+                self?.dismiss()
+            }
         }
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] event in
-            guard let self else { return event }
+            // Clicks in a file picker opened from Settings belong to the picker, not outside the menu.
+            guard let self, NSApp.modalWindow == nil else { return event }
             if event.type == .keyDown, event.keyCode == 53 { self.dismiss(); return nil }
             if event.type != .keyDown, event.window !== self.panel, event.window !== self.button?.window {
                 self.dismiss()
@@ -66,11 +77,18 @@ final class StatusMenu {
         }
     }
 
+    /// Closes the menu. Like a native menu, it reopens on the overview: the page, selection,
+    /// scroll position and unsaved edits are discarded with the view's identity.
     func dismiss() {
         panel.orderOut(nil)
         button?.highlight(false)
         if let globalMonitor { NSEvent.removeMonitor(globalMonitor); self.globalMonitor = nil }
         if let localMonitor { NSEvent.removeMonitor(localMonitor); self.localMonitor = nil }
+        guard isOpen else { return }
+        isOpen = false
+        content.rootView = AnyView(root.id(UUID()))
+        content.view.layoutSubtreeIfNeeded()
+        onClose?()
     }
 
     private func position() {
@@ -90,5 +108,15 @@ final class StatusMenu {
         if let globalMonitor { NSEvent.removeMonitor(globalMonitor) }
         if let localMonitor { NSEvent.removeMonitor(localMonitor) }
         if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
+    }
+}
+
+extension NSOpenPanel {
+    /// Shows the picker in front of the open menu, which stays open underneath instead of closing.
+    @MainActor func runAboveMenu() -> NSApplication.ModalResponse {
+        let menu = NSApp.keyWindow as? MenuPanel
+        menu?.level = .normal
+        defer { menu?.level = .popUpMenu }
+        return runModal()
     }
 }
