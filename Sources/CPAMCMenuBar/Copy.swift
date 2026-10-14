@@ -7,6 +7,9 @@ enum Copy {
     }
     static var locale: Locale { Locale(identifier: isFrench ? "fr_FR" : "en_US") }
     static func text(_ key: String) -> String { (isFrench ? fr[key] : en[key]) ?? en[key] ?? key }
+    static func text(_ key: String, _ value: String) -> String { text(key).replacingOccurrences(of: "%@", with: value) }
+    /// A branch Juice Bar can update from, by its name in Settings.
+    static func branch(_ name: String) -> String { text(name + "Branch") }
     static let en = [
         "iconSettings": "Menu bar icon", "iconPreview": "Icon preview", "orientation": "Orientation",
         "vertical": "Vertical", "horizontal": "Horizontal", "iconAppearance": "Appearance",
@@ -31,7 +34,7 @@ enum Copy {
         "serviceError": "Could not change the proxy service. Check its installation.",
         "test": "Test connection", "testing": "Testing…", "testPassed": "Connected — accounts readable",
         "testFailed": "Connection failed. Check the URL and key file.",
-        "title": "Subscriptions", "brand": "Juice Bar · Made for Notis", "back": "Back",
+        "title": "Subscriptions", "back": "Back",
         "loading": "Reading your subscriptions…", "empty": "No Claude or Codex accounts connected",
         "limit": "Limit reached", "noReading": "No reading", "lastKnown": "Last known",
         "left": "% left", "ready": "ready", "disabled": "Disabled", "renews": "Renews",
@@ -51,6 +54,20 @@ enum Copy {
         "keyNote": "The key stays in its existing file. It is never copied into this app or sent outside your Mac.",
         "connecting": "Connecting…", "offline": "Proxy unavailable", "demo": "Demo · No accounts accessed",
         "lastChecked": "Provider checked", "unknownError": "Check the local connection in Settings.",
+        "hideDisabled": "Hide disabled", "showDisabled": "Show disabled", "settingsTitle": "Settings", "general": "General",
+        "updates": "Updates", "autoUpdate": "Update automatically", "checkNow": "Check now", "checking": "Checking…",
+        "updateBranch": "Branch", "stableBranch": "Stable", "nightlyBranch": "Nightly",
+        "upToDate": "Up to date", "updateAvailable": "Update available", "installUpdate": "Install",
+        "installing": "Installing update…", "updateReady": "Ready, restarts when the menu closes", "restartNow": "Restart now",
+        "devBuild": "Waiting for %@ to include this version",
+        "modifiedBuild": "Built with local changes, not updated automatically",
+        "unknownBuild": "Built without version information", "unsupportedLocation": "Updates need Juice Bar in an Applications folder",
+        "noTools": "Install the Xcode Command Line Tools to update", "noBranch": "Nothing published on %@ yet",
+        "downloadFailed": "Couldn’t reach GitHub. Trying again later.",
+        "buildFailed": "The update couldn’t be built. Juice Bar keeps this version.",
+        "installFailed": "The update couldn’t be installed.", "updateBusy": "Another update is in progress.",
+        "updatesFooter": "Once a day, Juice Bar checks its branch on GitHub, then builds and installs new versions on this Mac. Stable gets releases; Nightly gets every change as soon as it’s merged.",
+        "version": "Version", "lastCheckedAt": "Checked", "updateMenu": "Install update", "restartMenu": "Restart to update",
     ]
     static let fr = [
         "iconSettings": "Icône de la barre des menus", "iconPreview": "Aperçu de l’icône", "orientation": "Orientation",
@@ -76,7 +93,7 @@ enum Copy {
         "serviceError": "Impossible de modifier le service du proxy. Vérifie son installation.",
         "test": "Tester la connexion", "testing": "Test en cours…", "testPassed": "Connecté — comptes accessibles",
         "testFailed": "Connexion impossible. Vérifie l’adresse et le fichier de clé.",
-        "title": "Abonnements", "brand": "Juice Bar · Made for Notis", "back": "Retour",
+        "title": "Abonnements", "back": "Retour",
         "loading": "Lecture de tes abonnements…", "empty": "Aucun compte Claude ou Codex connecté",
         "limit": "Limite atteinte", "noReading": "Aucune lecture", "lastKnown": "Dernière valeur",
         "left": "% restants", "ready": "disponibles", "disabled": "Désactivé", "renews": "Renouvellement",
@@ -96,6 +113,20 @@ enum Copy {
         "keyNote": "La clé reste dans son fichier actuel. Elle n’est ni copiée dans cette app ni envoyée hors de ton Mac.",
         "connecting": "Connexion…", "offline": "Proxy indisponible", "demo": "Démo · Aucun accès aux comptes",
         "lastChecked": "Quota vérifié à", "unknownError": "Vérifie la connexion locale dans les réglages.",
+        "hideDisabled": "Masquer les désactivés", "showDisabled": "Afficher les désactivés", "settingsTitle": "Réglages", "general": "Général",
+        "updates": "Mises à jour", "autoUpdate": "Mettre à jour automatiquement", "checkNow": "Vérifier", "checking": "Vérification…",
+        "updateBranch": "Branche", "stableBranch": "Stable", "nightlyBranch": "Nightly",
+        "upToDate": "À jour", "updateAvailable": "Mise à jour disponible", "installUpdate": "Installer",
+        "installing": "Installation…", "updateReady": "Prête, redémarre à la fermeture du menu", "restartNow": "Redémarrer",
+        "devBuild": "En attente de cette version sur %@",
+        "modifiedBuild": "Compilée avec des modifications locales, pas de mise à jour automatique",
+        "unknownBuild": "Compilée sans information de version", "unsupportedLocation": "Les mises à jour nécessitent Juice Bar dans un dossier Applications",
+        "noTools": "Installe les Command Line Tools de Xcode pour mettre à jour", "noBranch": "Rien de publié sur %@ pour l’instant",
+        "downloadFailed": "GitHub est injoignable. Nouvel essai plus tard.",
+        "buildFailed": "La mise à jour n’a pas pu être compilée. Juice Bar garde cette version.",
+        "installFailed": "La mise à jour n’a pas pu être installée.", "updateBusy": "Une autre mise à jour est en cours.",
+        "updatesFooter": "Une fois par jour, Juice Bar vérifie sa branche sur GitHub, puis compile et installe les nouvelles versions sur ce Mac. Stable reçoit les versions publiées ; Nightly, chaque changement dès qu’il est intégré.",
+        "version": "Version", "lastCheckedAt": "Vérifié à", "updateMenu": "Installer la mise à jour", "restartMenu": "Redémarrer pour mettre à jour",
     ]
     static func percent(_ left: Double?) -> String {
         guard let left else { return text("noReading") }

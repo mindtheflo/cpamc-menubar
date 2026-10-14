@@ -26,10 +26,50 @@ struct MenuRow: View {
     }
 }
 
+/// A provider's section title. Hovering it swaps the ready count for the switch that shows or hides its disabled accounts.
+struct ProviderHeader: View {
+    let provider: Provider
+    let status: String
+    let disabledCount: Int
+    @Binding var hidesDisabled: Bool
+    @State private var hovered = false
+    @State private var buttonHovered = false
+    private var toggleTitle: String { Copy.text(hidesDisabled ? "showDisabled" : "hideDisabled") }
+    var body: some View {
+        HStack {
+            Text(provider.title).fontWeight(.medium)
+            if provider == .claude {
+                Text(Copy.text("barLegend")).font(.system(size: 10))
+            }
+            Spacer()
+            if hovered && disabledCount > 0 {
+                Button { hidesDisabled.toggle() } label: {
+                    Text(toggleTitle).font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(buttonHovered ? .primary : .secondary)
+                        .padding(.horizontal, 8).frame(height: 19)
+                        .background(Color.primary.opacity(buttonHovered ? 0.14 : 0.07), in: Capsule())
+                        .contentShape(Capsule())
+                }.buttonStyle(.plain).onHover { buttonHovered = $0 }
+            } else {
+                Text(status).font(.system(size: 11))
+            }
+        }
+        .foregroundStyle(.secondary).padding(.horizontal, 10).frame(height: 25)
+        .contentShape(Rectangle()).onHover { hovered = $0; if !$0 { buttonHovered = false } }
+        .accessibilityElement(children: .combine)
+        .accessibilityActions {
+            if disabledCount > 0 { Button(toggleTitle) { hidesDisabled.toggle() } }
+        }
+    }
+}
+
 struct SubscriptionPanel: View {
     @ObservedObject var store: QuotaStore
+    @ObservedObject var updater: Updater
     @AppStorage("hideAccountNames") private var hideNames = false
     @AppStorage("language") private var language = "auto"
+    @AppStorage("hideDisabledCodex") private var hideDisabledCodex = false
+    @AppStorage("hideDisabledClaude") private var hideDisabledClaude = false
     @State private var selected: String?
     @State private var settings = false
     @State private var hovered: String?
@@ -37,7 +77,7 @@ struct SubscriptionPanel: View {
     var body: some View {
         VStack(spacing: 0) {
             if settings {
-                ConnectionSettings(store: store, back: { settings = false })
+                ConnectionSettings(store: store, updater: updater, back: { settings = false })
             } else if let selected, let account = store.snapshot?.accounts.first(where: { $0.id == selected }) {
                 detail(account)
             } else { overview }
@@ -47,6 +87,12 @@ struct SubscriptionPanel: View {
         .onChange(of: language) { _ in }
     }
     private var separator: some View { Divider().padding(.horizontal, 10).padding(.vertical, 5) }
+    private func hidesDisabled(_ provider: Provider) -> Binding<Bool> {
+        provider == .codex ? $hideDisabledCodex : $hideDisabledClaude
+    }
+    private func shown(_ accounts: [SubscriptionAccount]) -> [SubscriptionAccount] {
+        accounts.filter { !$0.disabled || !hidesDisabled($0.provider).wrappedValue }
+    }
     private func name(_ account: SubscriptionAccount) -> String {
         if !hideNames { return account.label }
         let accounts = store.snapshot?.accounts.filter { $0.provider == account.provider } ?? []
@@ -67,20 +113,16 @@ struct SubscriptionPanel: View {
                             let accounts = snapshot.accounts.filter { $0.provider == provider }
                             if !accounts.isEmpty {
                                 let summary = snapshot.summary(provider, at: store.now)
-                                HStack {
-                                    Text(provider.title).fontWeight(.medium)
-                                    if provider == .claude {
-                                        Text(Copy.text("barLegend")).font(.system(size: 10))
-                                    }
-                                    Spacer()
-                                    Text("\(summary.readyCount)/\(summary.accountCount) \(Copy.text("ready"))").font(.system(size: 11))
-                                }.foregroundStyle(.secondary).padding(.horizontal, 10).frame(height: 25)
-                                ForEach(accounts) { account in accountRow(account) }
+                                ProviderHeader(provider: provider,
+                                               status: "\(summary.readyCount)/\(summary.accountCount) \(Copy.text("ready"))",
+                                               disabledCount: accounts.filter(\.disabled).count,
+                                               hidesDisabled: hidesDisabled(provider))
+                                ForEach(shown(accounts)) { account in accountRow(account) }
                                 if provider == .codex { separator }
                             }
                         }
                     }
-                }.frame(height: min(330, CGFloat(snapshot.accounts.count) * 25 + 70))
+                }.frame(height: min(330, CGFloat(shown(snapshot.accounts).count) * 25 + 70))
             }
             if let error = store.error {
                 Text(Copy.isFrench ? Copy.text("unknownError") : error)
@@ -199,6 +241,11 @@ struct SubscriptionPanel: View {
             }.keyboardShortcut("r", modifiers: .command)
             MenuRow(title: Copy.text("dashboard")) { store.openDashboard() }
             MenuRow(title: Copy.text("settings"), shortcut: "⌘,") { settings = true }.keyboardShortcut(",", modifiers: .command)
+            switch updater.phase {
+            case .available: MenuRow(title: Copy.text("updateMenu")) { Task { await updater.install() } }
+            case .ready: MenuRow(title: Copy.text("restartMenu")) { updater.restart() }
+            default: EmptyView()
+            }
             separator
             MenuRow(title: Copy.text("quit"), shortcut: "⌘Q") { NSApplication.shared.terminate(nil) }.keyboardShortcut("q", modifiers: .command)
             if store.demo {
