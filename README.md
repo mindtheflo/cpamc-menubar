@@ -31,7 +31,7 @@ Captured directly from the native app on macOS, cropped to the menu panel. These
 ## What it shows
 
 - Claude and Codex accounts connected to your local CPAMC/CLIProxyAPI instance, including disabled accounts. Disabled accounts show readable usage but never count as available; rows without a usage reading cannot be opened. Hover a provider’s header to hide or show its disabled accounts; the choice is remembered per provider.
-- Subscription plan, remaining allowance, five-hour/weekly windows, reset times, and local proxy cooldowns.
+- Subscription plan, remaining allowance, five-hour/weekly windows, reset times, and local proxy cooldowns. The overview keeps to the bars and the time until each account's next renewal; an account's details show what each allowance has left and when it renews. Click a renewal time there to switch between the time left and the date and time.
 - **Pace** for each session and weekly allowance: at the rate you have used it since it renewed, will it run out first? Green is on track, orange runs out before it renews, blue is well under (less than half used by then), red is used up. An allowance's details say when it runs out at this pace, or about how much of it you will have used by its renewal.
 - Paid credits and extra-usage availability separately from included subscription quotas.
 - Unused Claude promotional reset counts, without consuming them.
