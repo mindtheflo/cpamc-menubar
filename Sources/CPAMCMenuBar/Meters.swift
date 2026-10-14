@@ -6,13 +6,17 @@ extension MeterTone {
     var color: Color {
         switch self {
         case .ok: return Color(nsColor: .systemGreen)
-        case .low: return Color(nsColor: .systemOrange)
+        case .low, .overPace: return Color(nsColor: .systemOrange)
         case .out: return Color(nsColor: .systemRed)
+        case .underPace: return Color(nsColor: .systemBlue)
         case .unknown: return .secondary
         }
     }
     var nativeColor: NSColor {
-        switch self { case .ok: return .systemGreen; case .low: return .systemOrange; case .out: return .systemRed; case .unknown: return .secondaryLabelColor }
+        switch self {
+        case .ok: return .systemGreen; case .low, .overPace: return .systemOrange; case .out: return .systemRed
+        case .underPace: return .systemBlue; case .unknown: return .secondaryLabelColor
+        }
     }
 }
 

@@ -63,7 +63,8 @@ final class QuotaTests: XCTestCase {
         var a = account("a", used: 30)
         a.windows.append(window(100, scoped: true))
         XCTAssertEqual(a.freshLeft(at: now), 70)
-        XCTAssertEqual(a.tone(at: now), .ok)
+        // 30% used with an hour of the week left: well under pace, and not used up.
+        XCTAssertEqual(a.tone(at: now), .underPace)
     }
     func testCodexWeeklyPrimaryWindowIsNotMislabeledFiveHour() throws {
         let usage = try json("""

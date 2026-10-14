@@ -139,6 +139,7 @@ struct SubscriptionPanel: View {
             ? Copy.text("lastKnown") + " · " + Copy.percent(window?.leftPercent) : Copy.percent(left)
         let highlighted = hovered == account.id && account.canInspect
         let renewal = Copy.duration(account.cooldownUntil.flatMap { $0 > store.now ? $0 : nil } ?? window?.resetsAt, now: store.now)
+        let pace = tone == .unknown || tone == .out ? nil : account.pace(at: store.now).map { ", " + Copy.pace($0) }
         return Button { store.accountUpdateError = nil; selected = account.id } label: {
             HStack(spacing: 10) {
                 if account.provider == .claude {
@@ -159,14 +160,25 @@ struct SubscriptionPanel: View {
         }
         .buttonStyle(.plain).disabled(!account.canInspect).onHover { hovered = $0 && account.canInspect ? account.id : nil }
         .help([account.plan, account.readError].compactMap { $0 }.joined(separator: " · "))
-        .accessibilityLabel("\(name(account)), \(caption), \(renewal ?? "")")
+        .accessibilityLabel("\(name(account)), \(caption)\(pace ?? ""), \(renewal ?? "")")
         .accessibilityValue(account.provider == .claude ? Copy.text("session") + ": " + Copy.percent(account.claudeRowWindows[0]?.leftPercent) + ", " + Copy.text("weekly") + ": " + Copy.percent(account.claudeRowWindows[1]?.leftPercent) : "")
     }
     private func quotaBar(_ window: QuotaWindow?, account: SubscriptionAccount, label: String) -> some View {
         let current = account.readError == nil && store.error == nil && window?.isFresh(at: store.now) == true
         let tone = current && !account.disabled ? window?.tone(at: store.now) ?? .unknown : .unknown
+        let pace = tone == .unknown || tone == .out ? nil : window?.pace(at: store.now).map { ", " + Copy.pace($0.pace) }
         return LevelCapsule(left: current || account.disabled ? window?.leftPercent : nil, tone: tone)
-            .help(label + ": " + Copy.percent(window?.leftPercent))
+            .help(label + ": " + Copy.percent(window?.leftPercent) + (pace ?? ""))
+    }
+    /// Where the window's pace leads by its renewal.
+    private func paceLine(_ estimate: PaceEstimate) -> String? {
+        let projected = estimate.projectedUse
+        let share = "\(projected < 10 ? Int(projected.rounded()) : Int((projected / 5).rounded()) * 5)%"
+        switch estimate.pace {
+        case .over: return Copy.duration(estimate.runsOutAt, now: store.now).map { Copy.text("paceOverLine", $0) }
+        case .steady: return Copy.text("paceSteadyLine", share)
+        case .under: return Copy.text("paceUnderLine", share)
+        }
     }
     private func detail(_ account: SubscriptionAccount) -> some View {
         VStack(spacing: 0) {
@@ -205,12 +217,16 @@ struct SubscriptionPanel: View {
                         HStack {
                             Text(Copy.text(window.id))
                             Spacer()
-                            Text(Copy.percent(window.leftPercent)).foregroundStyle(tone == .out || tone == .low ? tone.color : .primary)
+                            Text(Copy.percent(window.leftPercent))
+                                .foregroundStyle([.out, .low, .overPace].contains(tone) ? tone.color : .primary)
                         }
                         if !fresh { Text(Copy.text("lastKnown")).font(.system(size: 11)).foregroundStyle(.secondary) }
                         if let reset = window.resetsAt {
                             Text(reset > store.now ? Copy.text("renews") + " " + Copy.timestamp(reset, now: store.now, includeDate: true) : Copy.text("awaiting"))
                                 .font(.system(size: 11)).foregroundStyle(.secondary)
+                        }
+                        if fresh, tone != .out, let line = window.pace(at: store.now).flatMap(paceLine) {
+                            Text(line).font(.system(size: 11)).foregroundStyle(.secondary)
                         }
                     }
                 }.padding(.horizontal, 10).padding(.vertical, 6)

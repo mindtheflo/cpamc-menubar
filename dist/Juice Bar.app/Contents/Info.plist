@@ -21,7 +21,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.4.0</string>
+	<string>0.5.0</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -34,9 +34,9 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>4</string>
+	<string>5</string>
 	<key>JuiceBarSourceCommit</key>
-	<string>187feec272377bb3cdcd7934b1ad4bf74fbb74df</string>
+	<string>60b5e3e78db22000052c70dee994cb9d7d5eb4d8</string>
 	<key>JuiceBarSourceModified</key>
 	<false/>
 	<key>LSMinimumSystemVersion</key>

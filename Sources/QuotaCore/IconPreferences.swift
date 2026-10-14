@@ -24,15 +24,18 @@ public struct IconMetric: Sendable, Equatable {
     public let leftPercent: Double?
     public let capacity: Double
     public let missingProviders: [Provider]
+    /// How fast the allowances behind the bar are being used, when it can be told.
+    public let pace: Pace?
     public var isPartial: Bool { !missingProviders.isEmpty }
     public var normalizedPercent: Double? { leftPercent.map { $0 / capacity * 100 } }
     public var tone: MeterTone {
         guard let leftPercent = normalizedPercent else { return .unknown }
         if leftPercent <= 0 && isPartial { return .unknown }
-        return leftPercent <= 0 ? .out : leftPercent <= 10 ? .low : .ok
+        return MeterTone(left: leftPercent, pace: pace)
     }
-    public init(label: String, leftPercent: Double?, capacity: Double = 100, missingProviders: [Provider] = []) {
+    public init(label: String, leftPercent: Double?, capacity: Double = 100, missingProviders: [Provider] = [], pace: Pace? = nil) {
         self.label = label; self.leftPercent = leftPercent; self.capacity = capacity; self.missingProviders = missingProviders
+        self.pace = pace
     }
 }
 
@@ -43,25 +46,27 @@ public enum IconMetrics {
         case .providers:
             return Provider.allCases.map { provider in
                 let account = bestAccount(snapshot, provider: provider, at: now)
-                return IconMetric(label: provider == .codex ? "openai" : "claude", leftPercent: account?.freshLeft(at: now))
+                return IconMetric(label: provider == .codex ? "openai" : "claude", leftPercent: account?.freshLeft(at: now),
+                                  pace: account?.pace(at: now))
             }
         case .windows:
             // Pick one account per provider, then sum equally weighted provider allowances.
             // Keep each provider's session and weekly values tied to that same account.
             let accounts = Provider.allCases.map { bestAccount(snapshot, provider: $0, at: now) }
             return ["five_hour", "seven_day"].map { id in
-                let readings = accounts.map { account -> Double? in
+                let windows = accounts.map { account -> QuotaWindow? in
                     guard let window = account?.windows.first(where: { $0.id == id && !$0.modelScoped }),
                           window.isFresh(at: now) else { return nil }
-                    return window.leftPercent
+                    return window
                 }
+                let readings = windows.map { $0?.leftPercent }
                 let known = readings.compactMap { $0 }
                 let missing = zip(Provider.allCases, readings).compactMap { provider, reading in reading == nil ? provider : nil }
                 // Missing quota is not zero and must not erase another provider's known allowance.
                 // A partial sum is a lower bound, still scaled against both providers' full capacity.
                 return IconMetric(label: id == "five_hour" ? "session" : "weekly",
                                   leftPercent: known.isEmpty ? nil : known.reduce(0, +), capacity: 200,
-                                  missingProviders: missing)
+                                  missingProviders: missing, pace: Pace.combined(windows.compactMap { $0 }, at: now))
             }
         }
     }
