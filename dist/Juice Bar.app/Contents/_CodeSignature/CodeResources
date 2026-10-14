@@ -19,7 +19,7 @@
 		<dict>
 			<key>cdhash</key>
 			<data>
-			Z9hXq2zPb+PxE15L2WMYZd006Xg=
+			PZgDfTROah64K2NNH6HxjeW1Uaw=
 			</data>
 			<key>requirement</key>
 			<string>identifier "cpamc-quota-check" and anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */ and certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */ and certificate leaf[subject.OU] = YLU6HZ34WE</string>
