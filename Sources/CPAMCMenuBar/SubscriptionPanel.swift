@@ -72,7 +72,8 @@ struct SubscriptionPanel: View {
     @AppStorage("hideDisabledClaude") private var hideDisabledClaude = false
     @State private var selected: String?
     @State private var settings = false
-    @State private var hovered: String?
+    /// Whether the details show renewals as a date and time rather than the time left. A click on one switches them all.
+    @State private var renewalDates = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -135,9 +136,9 @@ struct SubscriptionPanel: View {
         let window = account.tightestWindow
         let left = account.disabled ? window?.leftPercent : account.freshLeft(at: store.now)
         let tone = store.error == nil ? account.tone(at: store.now) : .unknown
-        let caption = account.disabled ? Copy.text("disabled") + (account.hasUsage ? " · " + Copy.percent(left) : "") : left == nil && window?.leftPercent != nil
+        // The bars show the level; the words are for VoiceOver.
+        let level = account.disabled ? Copy.text("disabled") + (account.hasUsage ? " · " + Copy.percent(left) : "") : left == nil && window?.leftPercent != nil
             ? Copy.text("lastKnown") + " · " + Copy.percent(window?.leftPercent) : Copy.percent(left)
-        let highlighted = hovered == account.id && account.canInspect
         let renewal = Copy.duration(account.cooldownUntil.flatMap { $0 > store.now ? $0 : nil } ?? window?.resetsAt, now: store.now)
         let pace = tone == .unknown || tone == .out ? nil : account.pace(at: store.now).map { ", " + Copy.pace($0) }
         return Button { store.accountUpdateError = nil; selected = account.id } label: {
@@ -150,17 +151,16 @@ struct SubscriptionPanel: View {
                 } else {
                     LevelCapsule(left: account.disabled ? left : tone == .unknown ? nil : left, tone: tone)
                 }
-                Text(name(account) + " · " + (highlighted ? account.plan.map { $0 + " · " } ?? "" : "") + caption)
+                Text(name(account) + (account.disabled ? " · " + Copy.text("disabled") : ""))
                     .lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
-                if let renewal, !account.disabled { Text(renewal).monospacedDigit().foregroundStyle(highlighted ? .white.opacity(0.8) : .secondary) }
+                if let renewal, !account.disabled { Text(renewal).monospacedDigit().foregroundStyle(.secondary) }
             }
             .padding(.horizontal, 10).frame(height: 25).contentShape(Rectangle())
-            .foregroundStyle(highlighted ? Color.white : account.disabled ? .secondary : .primary)
-            .background(highlighted ? Color.accentColor : Color.clear, in: RoundedRectangle(cornerRadius: 5))
+            .foregroundStyle(account.disabled ? .secondary : .primary)
         }
-        .buttonStyle(.plain).disabled(!account.canInspect).onHover { hovered = $0 && account.canInspect ? account.id : nil }
-        .help([account.plan, account.readError].compactMap { $0 }.joined(separator: " · "))
-        .accessibilityLabel("\(name(account)), \(caption)\(pace ?? ""), \(renewal ?? "")")
+        .buttonStyle(.plain).disabled(!account.canInspect)
+        .help(account.readError ?? "")
+        .accessibilityLabel("\(name(account)), \(level)\(pace ?? ""), \(renewal ?? "")")
         .accessibilityValue(account.provider == .claude ? Copy.text("session") + ": " + Copy.percent(account.claudeRowWindows[0]?.leftPercent) + ", " + Copy.text("weekly") + ": " + Copy.percent(account.claudeRowWindows[1]?.leftPercent) : "")
     }
     private func quotaBar(_ window: QuotaWindow?, account: SubscriptionAccount, label: String) -> some View {
@@ -169,6 +169,16 @@ struct SubscriptionPanel: View {
         let pace = tone == .unknown || tone == .out ? nil : window?.pace(at: store.now).map { ", " + Copy.pace($0.pace) }
         return LevelCapsule(left: current || account.disabled ? window?.leftPercent : nil, tone: tone)
             .help(label + ": " + Copy.percent(window?.leftPercent) + (pace ?? ""))
+    }
+    /// When an allowance renews: the time left, or the date and time once clicked.
+    private func renewal(_ reset: Date) -> some View {
+        let relative = Copy.duration(reset, now: store.now) ?? ""
+        let text = renewalDates ? Copy.moment(reset, now: store.now) : relative
+        return Button { renewalDates.toggle() } label: {
+            Text(text).monospacedDigit().lineLimit(1).padding(.leading, 8).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain).layoutPriority(1)
+        .accessibilityLabel(renewalDates ? Copy.text("renews") + " " + text : Copy.text("renewsIn", relative))
     }
     /// Where the window's pace leads by its renewal.
     private func paceLine(_ estimate: PaceEstimate) -> String? {
@@ -215,15 +225,15 @@ struct SubscriptionPanel: View {
                     LevelCapsule(left: fresh ? window.leftPercent : nil, tone: tone).padding(.top, 2)
                     VStack(alignment: .leading, spacing: 3) {
                         HStack {
-                            Text(Copy.text(window.id))
+                            Text(Copy.text(window.id)).lineLimit(1)
                             Spacer()
-                            Text(Copy.percent(window.leftPercent))
-                                .foregroundStyle([.out, .low, .overPace].contains(tone) ? tone.color : .primary)
+                            if let reset = window.resetsAt, reset > store.now { renewal(reset) }
                         }
-                        if !fresh { Text(Copy.text("lastKnown")).font(.system(size: 11)).foregroundStyle(.secondary) }
-                        if let reset = window.resetsAt {
-                            Text(reset > store.now ? Copy.text("renews") + " " + Copy.timestamp(reset, now: store.now, includeDate: true) : Copy.text("awaiting"))
-                                .font(.system(size: 11)).foregroundStyle(.secondary)
+                        Text((fresh ? "" : Copy.text("lastKnown") + " · ") + Copy.percent(window.leftPercent))
+                            .font(.system(size: 11))
+                            .foregroundStyle([.out, .low, .overPace].contains(tone) ? tone.color : .secondary)
+                        if let reset = window.resetsAt, reset <= store.now {
+                            Text(Copy.text("awaiting")).font(.system(size: 11)).foregroundStyle(.secondary)
                         }
                         if fresh, tone != .out, let line = window.pace(at: store.now).flatMap(paceLine) {
                             Text(line).font(.system(size: 11)).foregroundStyle(.secondary)

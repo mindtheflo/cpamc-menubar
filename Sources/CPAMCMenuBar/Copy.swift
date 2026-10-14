@@ -45,7 +45,7 @@ enum Copy {
         "title": "Subscriptions", "back": "Back",
         "loading": "Reading your subscriptions…", "empty": "No Claude or Codex accounts connected",
         "limit": "Limit reached", "noReading": "No reading", "lastKnown": "Last known",
-        "left": "% left", "ready": "ready", "disabled": "Disabled", "renews": "Renews",
+        "left": "% left", "ready": "ready", "disabled": "Disabled", "renews": "Renews", "renewsIn": "Renews in %@",
         "cooldown": "Proxy cooldown until", "awaiting": "Awaiting a fresh reading",
         "refresh": "Refresh", "refreshing": "Refreshing…", "updated": "Updated",
         "dashboard": "Open CPAMC", "settings": "Settings…", "quit": "Quit Juice Bar",
@@ -109,7 +109,7 @@ enum Copy {
         "title": "Abonnements", "back": "Retour",
         "loading": "Lecture de tes abonnements…", "empty": "Aucun compte Claude ou Codex connecté",
         "limit": "Limite atteinte", "noReading": "Aucune lecture", "lastKnown": "Dernière valeur",
-        "left": "% restants", "ready": "disponibles", "disabled": "Désactivé", "renews": "Renouvellement",
+        "left": "% restants", "ready": "disponibles", "disabled": "Désactivé", "renews": "Renouvellement", "renewsIn": "Renouvellement dans %@",
         "cooldown": "Pause du proxy jusqu’au", "awaiting": "En attente d’une nouvelle lecture",
         "refresh": "Actualiser", "refreshing": "Actualisation…", "updated": "Actualisé à",
         "dashboard": "Ouvrir CPAMC", "settings": "Réglages…", "quit": "Quitter Juice Bar",
@@ -151,6 +151,12 @@ enum Copy {
         if m >= 1440 { return "\(m / 1440)\(isFrench ? "j" : "d") \((m % 1440) / 60)h" }
         if m >= 60 { return "\(m / 60)h \(m % 60)m" }
         return "\(m)m"
+    }
+    /// A date and time within the coming week, without the year: “7:46 PM” today, “Mon, Oct 19 at 7:46 PM” otherwise.
+    static func moment(_ date: Date, now: Date) -> String {
+        let f = DateFormatter(); f.locale = locale
+        f.setLocalizedDateFormatFromTemplate(Calendar.current.isDate(date, inSameDayAs: now) ? "jmm" : "EEEMMMdjmm")
+        return f.string(from: date)
     }
     static func timestamp(_ date: Date, now: Date, includeDate: Bool = false) -> String {
         let f = DateFormatter(); f.locale = locale
