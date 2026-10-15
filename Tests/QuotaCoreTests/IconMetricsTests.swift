@@ -8,12 +8,36 @@ final class IconMetricsTests: XCTestCase {
         if let session { windows.append(.init(id: "five_hour", usedPercent: 100-session, observedAt: now)) }
         return .init(id: id, provider: provider, label: id, disabled: disabled, unavailable: unavailable, windows: windows)
     }
-    func testProviderBarsPoolEachProvidersEnabledAccountsByTheirTighterLimit() {
+    func testProviderBarsPoolWeeklyCapacityRegardlessOfTighterSessionLimits() {
         let snapshot = QuotaSnapshot(accounts: [account("c1", session:90, weekly:10), account("c2", session:20, weekly:70), account("o",provider:.codex,session:85,weekly:40)])
         let bars = IconMetrics.bars(snapshot:snapshot,preferences:.init(),at:now)
         XCTAssertEqual(bars.map(\.label),["openai","claude"])
-        XCTAssertEqual(bars.map(\.leftPercent),[40,15])
+        XCTAssertEqual(bars.map(\.leftPercent),[40,40])
         XCTAssertEqual(bars.map(\.isPartial),[false,false])
+    }
+    func testProviderWeeklyBarIgnoresExhaustedOrStaleSessions() {
+        var a = account("a", session: 0, weekly: 86)
+        a.windows[1].observedAt = now.addingTimeInterval(-601)
+        let snapshot = QuotaSnapshot(accounts: [a, account("b", session: 100, weekly: 0),
+            account("c", session: 100, weekly: 0), account("d", session: 100, weekly: 0),
+            account("e", session: 100, weekly: 0)])
+        let bar = IconMetrics.bars(snapshot: snapshot, preferences: .init(), at: now)[1]
+        XCTAssertEqual(bar.leftPercent!, 86.0 / 5, accuracy: 0.001)
+        XCTAssertEqual(bar.missing, 0)
+        XCTAssertEqual(bar.tone, .unknown) // No forecast confidence is invented from the new fill.
+    }
+    func testProviderWeeklyBarKeepsMissingWeeklyReadingsPartialAndExcludesNonWeeklyPlans() {
+        var stale = account("stale", weekly: 100)
+        stale.windows[0].observedAt = now.addingTimeInterval(-601)
+        let unknown = SubscriptionAccount(id: "unknown", provider: .claude, label: "unknown")
+        let monthly = SubscriptionAccount(id: "monthly", provider: .claude, label: "monthly",
+            windows: [.init(id: "primary", usedPercent: 0, observedAt: now)])
+        let snapshot = QuotaSnapshot(accounts: [account("a", session: 0, weekly: 86), stale, unknown, monthly,
+            account("disabled", weekly: 100, disabled: true)])
+        let bar = IconMetrics.bars(snapshot: snapshot, preferences: .init(), at: now)[1]
+        XCTAssertEqual(bar.leftPercent!, 86.0 / 3, accuracy: 0.001)
+        XCTAssertEqual(bar.missing, 2)
+        XCTAssertEqual(bar.tone, .unknown)
     }
     func testWindowBarsPoolEveryEnabledAccountOutOf100Percent() throws {
         let snapshot = QuotaSnapshot(accounts:[account("a",session:90,weekly:10), account("b",session:20,weekly:70), account("o",provider:.codex,session:80,weekly:60)])

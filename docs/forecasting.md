@@ -86,7 +86,7 @@ Define pressure as the maximum cumulative demand divided by optimistic cumulativ
 | **Grey / neutral** | Missing evidence, unknown comparable capacities, ambiguous availability, or scenarios cross a colour boundary. |
 | **Red** | Actual measured exhaustion only; not a forecast. |
 
-Provider bars use the joint forecast. Session/weekly icon bars use the corresponding joint-model constraint result; they never use spare Claude capacity to excuse a Codex bottleneck. All represented providers need a supported prediction before the combined bar takes a forecast colour. Partial readings always remain neutral. The UI shows a brief neutral reason rather than defaulting to green or warning orange from a low percentage alone.
+In OpenAI + Claude mode, provider bar **height** shows pooled weekly capacity only: sum of weekly percentages remaining divided by the number of contributing enabled licences. Session limits do not reduce the fill. Provider bar **colours** still use the joint session/weekly forecast. Session/weekly icon bars use the corresponding joint-model constraint result; they never use spare Claude capacity to excuse a Codex bottleneck. All represented providers need a supported prediction before the combined bar takes a forecast colour. Partial readings always remain neutral. The UI shows a brief neutral reason rather than defaulting to green or warning orange from a low percentage alone.
 
 ## Validation boundary
 

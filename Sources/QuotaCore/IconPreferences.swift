@@ -45,14 +45,24 @@ public enum IconMetrics {
         let enabled = (offline ? nil : snapshot)?.accounts.filter { !$0.disabled } ?? []
         switch preferences.content {
         case .providers:
-            // An account can use only what its tighter allowance leaves.
+            // Fill is pooled weekly capacity only; the global forecast still models both limits.
             return Provider.allCases.map { provider in
                 let accounts = enabled.filter { $0.provider == provider }
-                let read = accounts.filter { $0.freshLeft(at: now) != nil }
-                let left = read.compactMap { $0.freshLeft(at: now) }
+                var left: [Double] = [], missing = 0
+                for account in accounts {
+                    let shared = account.windows.filter { !$0.modelScoped }
+                    // A known plan without a weekly allowance contributes neither quota nor denominator.
+                    guard let weekly = shared.first(where: { $0.id == "seven_day" }) else {
+                        if shared.isEmpty { missing += 1 }
+                        continue
+                    }
+                    if account.readError == nil, weekly.isFresh(at: now), let value = weekly.leftPercent {
+                        left.append(value)
+                    } else { missing += 1 }
+                }
                 return IconMetric(label: provider == .codex ? "openai" : "claude",
-                                  leftPercent: left.isEmpty ? nil : left.reduce(0, +) / Double(accounts.count),
-                                  missing: accounts.count - read.count,
+                                  leftPercent: left.isEmpty ? nil : left.reduce(0, +) / Double(left.count + missing),
+                                  missing: missing,
                                   pace: forecasts[provider]?.pace)
             }
         case .windows:

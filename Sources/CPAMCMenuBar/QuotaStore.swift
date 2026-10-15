@@ -35,7 +35,8 @@ final class QuotaStore: ObservableObject {
                 value += " (" + Copy.text(metric.missing == 1 ? "notReportedOne" : "notReportedMany", "\(metric.missing)") + ")"
             }
             let pace = metric.tone == .out ? nil : (metric.tone == .unknown ? nil : metric.pace).map { ", " + Copy.pace($0) } ?? ", " + Copy.text("forecastUnknown")
-            return Copy.text(metric.label) + ": " + value + (pace ?? "")
+            let label = Copy.text(metric.label) + (iconPreferences.content == .providers ? " (" + Copy.text("weekly") + ")" : "")
+            return label + ": " + value + (pace ?? "")
         }.joined(separator: " · ")
     }
     let demo: Bool

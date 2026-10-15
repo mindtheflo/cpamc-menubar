@@ -41,7 +41,7 @@ Captured directly from the native app on macOS, cropped to the menu panel. These
 - A **Use this account** toggle inside each subscription’s detail view. It flips the proxy’s own disable switch for that exact account, the one CPAMC uses, verifies the result, and leaves every other account untouched. An account counts as disabled exactly when the proxy says so.
 - Explicit Start/Stop controls for a matching local CLIProxyAPI login service.
 
-The menu-bar icon pools the accounts enabled in the proxy: a bar’s 100% is all of their allowances together, and it shows what they have left between them. Each account counts the same, since the proxy reports usage as a share of each plan rather than tokens or dollars. Details expose model-specific windows separately. An old reading or an elapsed reset is not presented as newly available quota.
+The menu-bar icon pools the accounts enabled in the proxy: in OpenAI + Claude mode, each bar’s fill is its provider’s combined **weekly** capacity remaining. Five licences have 500 weekly points; 86 points left fills 17.2% of the bar. Session limits affect the forecast colour, not this fill level. Each account counts the same, since the proxy reports usage as a share of each plan rather than tokens or dollars. Details expose model-specific windows separately. An old reading or an elapsed reset is not presented as newly available quota.
 
 The forecast learns **quota changes**, not an average since the last reset. Demand comes from the last 24 comparable hours: a six-hour half-life baseline plus a 30-minute half-life burst estimate. The burst signal fades over the next six hours rather than letting quiet nights dominate the rest of the day. A local-hour profile distinguishes weekdays and weekends; Monday remembers Friday instead of learning two days of inactivity. Missing readings and sleep gaps are not zeros.
 
@@ -55,7 +55,7 @@ Open **Settings** for a live preview and automatically saved preferences:
 
 - **Vertical or horizontal** — two side-by-side gauges or two stacked gauges.
 - **Color or black & white** — pace colors or native macOS template tint, matching neighboring menu-bar icons and adapting to light/dark backgrounds. In black & white, the icon's tooltip still tells the pace.
-- **OpenAI + Claude** — each provider’s enabled accounts together, out of 100%. Each account adds what its tighter session/weekly limit leaves.
+- **OpenAI + Claude** — each provider’s enabled weekly allowances together, out of 100%. Fill ignores session limits; global forecast colours still account for session and weekly constraints. Known plans without weekly allowances add nothing to this pool; unread or stale weekly allowances keep it partial and neutral.
 - **Session + weekly** — the session (or weekly) allowance of every enabled account, OpenAI and Claude together, out of 100%. A plan without a session limit adds nothing to the session bar. An enabled account without a current reading counts as empty, so the bar is a lower bound (≥) and the tooltip says how many accounts are not reported. No reading at all means unknown, not zero.
 
 The first metric is on the left (vertical) or top (horizontal). Disabled accounts are left out; old readings and elapsed resets are never counted as allowance. Unreported limits and confirmed zero quota keep an empty outline; the tooltip distinguishes “No reading” from exhausted quota. The default is vertical, color, OpenAI + Claude. The app logo is the vertical **Twin Meter** design, paired with the Juice Bar wordmark.
