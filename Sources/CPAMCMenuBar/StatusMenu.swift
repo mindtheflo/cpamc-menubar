@@ -118,7 +118,8 @@ final class StatusMenu {
         let visible = screen.visibleFrame
         let width = max(360, size.width)
         let height = min(max(50, size.height), visible.height - 8)
-        let x = min(max(anchor.midX - width / 2, visible.minX + 4), visible.maxX - width - 4)
+        // Like other apps' menus, its left corner sits below the icon, moved left when there isn't room.
+        let x = min(max(anchor.minX, visible.minX + 4), visible.maxX - width - 4)
         let top = min(anchor.minY, visible.maxY) - 4
         panel.setFrame(NSRect(x: x, y: max(visible.minY + 4, top - height), width: width, height: height), display: true)
     }
