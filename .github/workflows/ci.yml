@@ -14,7 +14,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: swift test
       - run: bash scripts/build.sh
-      - run: python3 scripts/test-plugin.py dist/plugin/cpamc-menubar.dylib
+      - run: python3 scripts/check-release.py
       - uses: actions/upload-artifact@v4
         with:
           name: Juice-Bar-macOS

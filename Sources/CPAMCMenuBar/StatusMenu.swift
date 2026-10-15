@@ -72,11 +72,24 @@ final class StatusMenu {
         isOpen = true
         // A menu bar manager such as Bartender can keep the item off screen, even right after the
         // click that opens the menu. The menu then opens where the click was.
-        anchor = window.screen == nil ? NSRect(origin: NSEvent.mouseLocation, size: .zero)
-            : window.convertToScreen(button.convert(button.bounds, to: nil))
+        if CommandLine.arguments.contains("--demo"), CommandLine.arguments.contains("--demo-page"),
+           let screen = NSScreen.main {
+            // Release captures have a stable on-screen anchor, even with a menu-bar manager.
+            anchor = NSRect(x: screen.visibleFrame.minX + 40, y: screen.visibleFrame.maxY, width: 30, height: 24)
+        } else {
+            anchor = window.screen == nil ? NSRect(origin: NSEvent.mouseLocation, size: .zero)
+                : window.convertToScreen(button.convert(button.bounds, to: nil))
+        }
         position()
         panel.orderFrontRegardless()
         panel.makeKey()
+        if CommandLine.arguments.contains("--demo"), CommandLine.arguments.contains("--demo-page") {
+            NSApp.activate(ignoringOtherApps: true)
+            // Capture the page, not the first text field's automatic focus selection.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                self?.panel.makeFirstResponder(nil)
+            }
+        }
         button.highlight(true)
         guard !staysOpen, localMonitor == nil else { return }
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in

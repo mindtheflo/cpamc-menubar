@@ -8,3 +8,6 @@ config.json
 management-key
 *.pem
 *.p12
+
+__pycache__/
+*.pyc

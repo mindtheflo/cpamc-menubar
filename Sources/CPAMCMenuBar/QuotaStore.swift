@@ -46,7 +46,7 @@ final class QuotaStore: ObservableObject {
 
     init(demo: Bool = false) {
         self.demo = demo
-        let initial = Configuration.load()
+        let initial = demo ? Configuration() : Configuration.load()
         configuration = initial
         client = ProxyClient(configuration: initial)
         if !demo { paceHistory = PaceHistory.load() }

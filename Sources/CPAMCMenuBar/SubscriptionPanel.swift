@@ -95,7 +95,17 @@ struct SubscriptionPanel: View {
             } else { overview }
         }
         .font(.system(size: 13)).frame(width: 350).padding(5)
-        .onAppear { store.start() }
+        .onAppear {
+            store.start()
+            if store.demo, let index = CommandLine.arguments.firstIndex(of: "--demo-page"),
+               CommandLine.arguments.indices.contains(index + 1) {
+                switch CommandLine.arguments[index + 1] {
+                case "account": selected = "demo-claude-4"
+                case "settings": settings = true
+                default: break
+                }
+            }
+        }
         .onChange(of: language) { _ in }
     }
     private var separator: some View { Divider().padding(.horizontal, 10).padding(.vertical, 5) }
