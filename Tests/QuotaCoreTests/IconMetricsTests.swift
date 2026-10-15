@@ -113,14 +113,16 @@ final class IconMetricsTests: XCTestCase {
         XCTAssertEqual(bars.map(\.tone), [.overPace, .underPace])
         XCTAssertEqual(IconMetrics.bars(snapshot: snapshot, preferences: prefs, at: now, forecasts: [.claude: estimate(.under)]).map(\.tone), [.unknown, .unknown])
     }
-    func testIconPreferencesPersistAndCorruptionFallsBackToVertical() {
+    func testIconPreferencesPersistAndLegacyOrientationIsIgnored() {
         let suite = "cpamc-icon-test-" + UUID().uuidString
         let defaults = UserDefaults(suiteName:suite)!
         defer { defaults.removePersistentDomain(forName:suite) }
-        XCTAssertEqual(IconPreferences.load(from:defaults).orientation,.vertical)
-        var preferences = IconPreferences(); preferences.orientation = .horizontal; preferences.appearance = .monochrome; preferences.content = .windows
+        var preferences = IconPreferences(); preferences.appearance = .monochrome; preferences.content = .windows
         preferences.save(to:defaults)
         XCTAssertEqual(IconPreferences.load(from:defaults),preferences)
+        // Removing orientation must preserve the user's appearance and content choices.
+        defaults.set(Data(#"{"orientation":"horizontal","appearance":"monochrome","content":"windows"}"#.utf8), forKey: IconPreferences.defaultsKey)
+        XCTAssertEqual(IconPreferences.load(from: defaults), preferences)
         defaults.set(Data("invalid".utf8),forKey:IconPreferences.defaultsKey)
         XCTAssertEqual(IconPreferences.load(from:defaults),IconPreferences())
     }

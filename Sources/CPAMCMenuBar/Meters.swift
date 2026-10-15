@@ -37,7 +37,8 @@ struct LevelCapsule: View {
 enum MenuIcon {
     static func image(_ metrics: [IconMetric], preferences: IconPreferences) -> NSImage {
         let monochrome = preferences.appearance == .monochrome
-        let vertical = preferences.orientation == .vertical
+        // Content determines geometry: providers stacked, allowance windows side by side.
+        let vertical = preferences.content == .windows
         let image = NSImage(size: NSSize(width: 24, height: 22), flipped: false) { _ in
             for (index, metric) in metrics.prefix(2).enumerated() {
                 let rect = vertical
