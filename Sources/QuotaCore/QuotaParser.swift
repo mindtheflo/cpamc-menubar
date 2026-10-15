@@ -4,10 +4,11 @@ public enum QuotaParser {
     public static func record(_ value: JSONValue, previous: SubscriptionAccount? = nil) -> SubscriptionAccount? {
         guard let raw = value["provider"].string ?? value["type"].string,
               let provider = Provider(rawValue: raw.lowercased()), let id = value["auth_index"].string, !id.isEmpty else { return nil }
-        let label = [value["label"].string, value["email"].string, value["account"].string]
+        // The sign-in email names an account best; the proxy's label and account id are fallbacks.
+        let label = [value["email"].string, value["label"].string, value["account"].string]
             .compactMap { $0 }.first { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } ?? provider.title
         var result = previous ?? SubscriptionAccount(id: id, provider: provider, label: label)
-        result.label = label; result.disabled = value["disabled"].bool ?? false
+        result.label = label; result.disabled = isDisabled(value)
         result.unavailable = value["unavailable"].bool ?? false
         result.cooldownUntil = parseDate(value["next_retry_after"].string)
         let quota = value["quota"]
@@ -20,6 +21,11 @@ public enum QuotaParser {
             if provider == .codex, result.plan == nil { result.plan = planLabel(quota["signals"]["X-Codex-Plan-Type"].string) }
         }
         return result
+    }
+
+    /// Disabled as the proxy decides it: the account's switch is off, or its status says it is disabled.
+    public static func isDisabled(_ record: JSONValue) -> Bool {
+        record["disabled"].bool == true || record["status"].string == "disabled"
     }
 
     public static func headerWindows(provider: Provider, signals: JSONValue, at date: Date) -> [QuotaWindow] {

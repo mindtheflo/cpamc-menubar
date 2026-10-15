@@ -37,8 +37,8 @@ public actor ProxyClient {
               let record = records.first(where: { $0["auth_index"].string == account.id }),
               let current = QuotaParser.record(record, previous: account), current.provider == account.provider,
               let name = record["name"].string, !name.isEmpty,
-              let disabled = record["disabled"].bool else { throw ProxyError.accountUpdate }
-        if disabled == !enabled { return current }
+              record["disabled"].bool != nil else { throw ProxyError.accountUpdate }
+        if current.disabled == !enabled { return current }
         let body: JSONValue = .object(["name": .string(name), "auth_index": .string(account.id), "disabled": .bool(!enabled)])
         var writeError: Error?
         do { _ = try await management(path: "auth-files/status", body: body, method: "PATCH") }
@@ -46,8 +46,8 @@ public actor ProxyClient {
         // Reconcile even a lost PATCH response. Never blindly repeat a routing mutation.
         let response = try await management(path: "auth-files")
         guard let updated = response["files"].array.first(where: { $0["auth_index"].string == account.id }),
-              updated["disabled"].bool == !enabled,
-              let result = QuotaParser.record(updated, previous: account), result.provider == account.provider else {
+              let result = QuotaParser.record(updated, previous: account), result.provider == account.provider,
+              result.disabled == !enabled else {
             throw writeError ?? ProxyError.accountUpdate
         }
         return result

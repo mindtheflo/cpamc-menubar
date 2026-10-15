@@ -81,6 +81,17 @@ final class PaceTests: XCTestCase {
         XCTAssertEqual(unknown.tone(at: now), .low)
         XCTAssertNil(Pace.combined([], at: now))
     }
+    func testAllowancesOfOneKindPoolTheirUse() {
+        let fastWeek = window(used: 55, renewsIn: 3.5 * day)
+        let quietWeek = window(used: 15, renewsIn: 2.8 * day)
+        XCTAssertEqual(Pace.combined([fastWeek], at: now), .over)
+        XCTAssertEqual(Pace.combined([fastWeek, quietWeek], at: now), .steady)
+        XCTAssertEqual(Pace.combined([quietWeek, quietWeek], at: now), .under)
+        // An unused session that hasn't started adds room but no pace of its own.
+        let fastSession = window("five_hour", used: 40, renewsIn: 4 * hour)
+        XCTAssertEqual(Pace.combined([fastSession, window("five_hour", used: 0, renewsIn: nil)], at: now), .steady)
+        XCTAssertNil(Pace.combined([fastWeek, window(used: 30, renewsIn: nil)], at: now))
+    }
     func testIconBarsCarryThePaceOfTheAccountsTheyShow() {
         let codex = account("o", provider: .codex, [window("five_hour", used: 40, renewsIn: 4 * hour), window(used: 15, renewsIn: 2.8 * day)])
         let claude = account("c", [window("five_hour", used: 0, renewsIn: 2 * hour), window(used: 15, renewsIn: 2.8 * day)])
@@ -89,8 +100,9 @@ final class PaceTests: XCTestCase {
         XCTAssertEqual(providers.map(\.pace), [.over, .under])
         XCTAssertEqual(providers.map(\.tone), [.overPace, .underPace])
         var preferences = IconPreferences(); preferences.content = .windows
+        // Pooled, one account's fast session is absorbed by the other's quiet one.
         let windows = IconMetrics.bars(snapshot: snapshot, preferences: preferences, at: now)
-        XCTAssertEqual(windows.map(\.pace), [.over, .under])
+        XCTAssertEqual(windows.map(\.pace), [.steady, .under])
         XCTAssertEqual(IconMetrics.bars(snapshot: snapshot, preferences: preferences, at: now, offline: true).map(\.tone), [.unknown, .unknown])
     }
 }

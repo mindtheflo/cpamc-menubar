@@ -50,7 +50,7 @@ enum MenuIcon {
                 ink.setStroke()
                 capsule.lineWidth = 1
                 capsule.stroke()
-                if let left = metric.normalizedPercent, left > 0 {
+                if let left = metric.leftPercent, left > 0 {
                     let fraction = CGFloat(min(100, max(0, left)) / 100)
                     let fill = vertical
                         ? NSRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height * fraction)

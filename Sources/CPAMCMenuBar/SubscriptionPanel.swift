@@ -26,10 +26,9 @@ struct MenuRow: View {
     }
 }
 
-/// A provider's section title. Hovering it swaps the ready count for the switch that shows or hides its disabled accounts.
+/// A provider's section title. Hovering it shows the switch that shows or hides its disabled accounts.
 struct ProviderHeader: View {
     let provider: Provider
-    let status: String
     let disabledCount: Int
     @Binding var hidesDisabled: Bool
     @State private var hovered = false
@@ -38,9 +37,6 @@ struct ProviderHeader: View {
     var body: some View {
         HStack {
             Text(provider.title).fontWeight(.medium)
-            if provider == .claude {
-                Text(Copy.text("barLegend")).font(.system(size: 10))
-            }
             Spacer()
             if hovered && disabledCount > 0 {
                 Button { hidesDisabled.toggle() } label: {
@@ -50,8 +46,6 @@ struct ProviderHeader: View {
                         .background(Color.primary.opacity(buttonHovered ? 0.14 : 0.07), in: Capsule())
                         .contentShape(Capsule())
                 }.buttonStyle(.plain).onHover { buttonHovered = $0 }
-            } else {
-                Text(status).font(.system(size: 11))
             }
         }
         .foregroundStyle(.secondary).padding(.horizontal, 10).frame(height: 25)
@@ -113,10 +107,7 @@ struct SubscriptionPanel: View {
                         ForEach(Provider.allCases, id: \.self) { provider in
                             let accounts = snapshot.accounts.filter { $0.provider == provider }
                             if !accounts.isEmpty {
-                                let summary = snapshot.summary(provider, at: store.now)
-                                ProviderHeader(provider: provider,
-                                               status: "\(summary.readyCount)/\(summary.accountCount) \(Copy.text("ready"))",
-                                               disabledCount: accounts.filter(\.disabled).count,
+                                ProviderHeader(provider: provider, disabledCount: accounts.filter(\.disabled).count,
                                                hidesDisabled: hidesDisabled(provider))
                                 ForEach(shown(accounts)) { account in accountRow(account) }
                                 if provider == .codex { separator }
@@ -134,10 +125,10 @@ struct SubscriptionPanel: View {
     }
     private func accountRow(_ account: SubscriptionAccount) -> some View {
         let window = account.tightestWindow
-        let left = account.disabled ? window?.leftPercent : account.freshLeft(at: store.now)
+        let left = account.freshLeft(at: store.now)
         let tone = store.error == nil ? account.tone(at: store.now) : .unknown
         // The bars show the level; the words are for VoiceOver.
-        let level = account.disabled ? Copy.text("disabled") + (account.hasUsage ? " · " + Copy.percent(left) : "") : left == nil && window?.leftPercent != nil
+        let level = left == nil && window?.leftPercent != nil
             ? Copy.text("lastKnown") + " · " + Copy.percent(window?.leftPercent) : Copy.percent(left)
         let renewal = Copy.duration(account.cooldownUntil.flatMap { $0 > store.now ? $0 : nil } ?? window?.resetsAt, now: store.now)
         let pace = tone == .unknown || tone == .out ? nil : account.pace(at: store.now).map { ", " + Copy.pace($0) }
@@ -149,25 +140,26 @@ struct SubscriptionPanel: View {
                         quotaBar(account.claudeRowWindows[1], account: account, label: Copy.text("weekly"))
                     }
                 } else {
-                    LevelCapsule(left: account.disabled ? left : tone == .unknown ? nil : left, tone: tone)
+                    LevelCapsule(left: tone == .unknown ? nil : left, tone: tone)
                 }
-                Text(name(account) + (account.disabled ? " · " + Copy.text("disabled") : ""))
+                Text(name(account))
                     .lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
-                if let renewal, !account.disabled { Text(renewal).monospacedDigit().foregroundStyle(.secondary) }
+                if let renewal { Text(renewal).monospacedDigit().foregroundStyle(.secondary) }
             }
             .padding(.horizontal, 10).frame(height: 25).contentShape(Rectangle())
+            // A disabled account is dimmed; the words are for VoiceOver.
             .foregroundStyle(account.disabled ? .secondary : .primary)
         }
-        .buttonStyle(.plain).disabled(!account.canInspect)
+        .buttonStyle(.plain)
         .help(account.readError ?? "")
-        .accessibilityLabel("\(name(account)), \(level)\(pace ?? ""), \(renewal ?? "")")
+        .accessibilityLabel("\(name(account))\(account.disabled ? ", " + Copy.text("disabled") : ""), \(level)\(pace ?? ""), \(renewal ?? "")")
         .accessibilityValue(account.provider == .claude ? Copy.text("session") + ": " + Copy.percent(account.claudeRowWindows[0]?.leftPercent) + ", " + Copy.text("weekly") + ": " + Copy.percent(account.claudeRowWindows[1]?.leftPercent) : "")
     }
     private func quotaBar(_ window: QuotaWindow?, account: SubscriptionAccount, label: String) -> some View {
         let current = account.readError == nil && store.error == nil && window?.isFresh(at: store.now) == true
-        let tone = current && !account.disabled ? window?.tone(at: store.now) ?? .unknown : .unknown
+        let tone = current ? window?.tone(at: store.now) ?? .unknown : .unknown
         let pace = tone == .unknown || tone == .out ? nil : window?.pace(at: store.now).map { ", " + Copy.pace($0.pace) }
-        return LevelCapsule(left: current || account.disabled ? window?.leftPercent : nil, tone: tone)
+        return LevelCapsule(left: current ? window?.leftPercent : nil, tone: tone)
             .help(label + ": " + Copy.percent(window?.leftPercent) + (pace ?? ""))
     }
     /// When an allowance renews: the time left, or the date and time once clicked.
@@ -217,7 +209,6 @@ struct SubscriptionPanel: View {
                     .padding(.horizontal, 10).padding(.vertical, 4)
             }
             separator
-            if account.disabled { note(Copy.text("disabled")) }
             ForEach(account.windows) { window in
                 let fresh = window.isFresh(at: store.now) && account.readError == nil && store.error == nil
                 let tone = fresh ? window.tone(at: store.now) : .unknown

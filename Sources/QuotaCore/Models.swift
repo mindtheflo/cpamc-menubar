@@ -77,8 +77,6 @@ public struct SubscriptionAccount: Identifiable, Codable, Sendable, Equatable {
         self.extraUsageEnabled = extraUsageEnabled; self.paidCredits = paidCredits
         self.unlimitedCredits = unlimitedCredits; self.resetGrantsLeft = resetGrantsLeft
     }
-    public var hasUsage: Bool { windows.contains { $0.leftPercent != nil } }
-    public var canInspect: Bool { !disabled || hasUsage }
     public var claudeRowWindows: [QuotaWindow?] {
         [windows.first { $0.id == "five_hour" }, windows.first { $0.id == "seven_day" }]
     }
@@ -86,9 +84,10 @@ public struct SubscriptionAccount: Identifiable, Codable, Sendable, Equatable {
         windows.filter { !$0.modelScoped && $0.leftPercent != nil }
             .min { ($0.leftPercent ?? 100) < ($1.leftPercent ?? 100) }
     }
+    /// What the tighter shared allowance leaves, from a current reading. A disabled account still has one.
     public func freshLeft(at now: Date) -> Double? {
         let shared = windows.filter { !$0.modelScoped }
-        guard !disabled, readError == nil, !shared.isEmpty,
+        guard readError == nil, !shared.isEmpty,
               shared.allSatisfy({ $0.isFresh(at: now) && $0.leftPercent != nil }) else { return nil }
         return shared.compactMap(\.leftPercent).min()
     }
@@ -110,28 +109,4 @@ public struct QuotaSnapshot: Codable, Sendable {
     public init(accounts: [SubscriptionAccount], fetchedAt: Date = Date()) {
         self.accounts = accounts; self.fetchedAt = fetchedAt
     }
-    public func summary(_ provider: Provider, at now: Date) -> ProviderSummary {
-        let enabled = accounts.filter { $0.provider == provider && !$0.disabled }
-        let values = enabled.compactMap { $0.freshLeft(at: now) }
-        // Independent subscriptions are not additive percentages: routing uses the best account.
-        let left = values.max()
-        let unknown = values.count < enabled.count
-        let tone: MeterTone = left.map { $0 <= 0 ? (unknown ? .unknown : .out) : $0 <= 10 ? .low : .ok } ?? .unknown
-        let reset = enabled.compactMap { a -> Date? in
-            if let c = a.cooldownUntil, c > now { return c }
-            return a.tightestWindow?.resetsAt.flatMap { $0 > now ? $0 : nil }
-        }.min()
-        return ProviderSummary(provider: provider, leftPercent: tone == .unknown ? nil : left,
-                               tone: tone, accountCount: enabled.count,
-                               readyCount: enabled.filter { $0.isReady(at: now) }.count, nextReset: reset)
-    }
-}
-
-public struct ProviderSummary: Sendable {
-    public let provider: Provider
-    public let leftPercent: Double?
-    public let tone: MeterTone
-    public let accountCount: Int
-    public let readyCount: Int
-    public let nextReset: Date?
 }

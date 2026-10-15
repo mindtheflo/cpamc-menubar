@@ -3,6 +3,8 @@ import QuotaCore
 
 enum Demo {
     static func snapshot(at now: Date) -> QuotaSnapshot {
+        // Accounts are named by their sign-in email, as the proxy reports it.
+        let names = ["alex", "jordan", "morgan", "sam", "taylor"]
         func account(_ provider: Provider, _ number: Int, _ used: Double, hours: Double,
                      weekly: Double? = nil, disabled: Bool = false) -> SubscriptionAccount {
             var windows = [QuotaWindow(id: weekly == nil ? "seven_day" : "five_hour", usedPercent: used,
@@ -12,7 +14,7 @@ enum Demo {
                                      resetsAt: now.addingTimeInterval(5 * 86400), observedAt: now))
             }
             return .init(id: "demo-\(provider.rawValue)-\(number)", provider: provider,
-                         label: "\(provider.title) \(number)", plan: provider == .claude ? "Max 20×" : "Pro",
+                         label: names[number - 1] + "@example.com", plan: provider == .claude ? "Max 20×" : "Pro",
                          disabled: disabled, unavailable: used >= 100 || (weekly ?? 0) >= 100,
                          cooldownUntil: used >= 100 ? now.addingTimeInterval(hours * 3600) : nil,
                          windows: windows, checkedAt: now,
