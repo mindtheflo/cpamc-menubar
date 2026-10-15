@@ -2,27 +2,42 @@ import AppKit
 import SwiftUI
 import QuotaCore
 
+/// The highlight under a clickable line while the pointer is over it. The line's text stays as it is.
+struct HoverHighlight: ViewModifier {
+    var enabled = true
+    @State private var hovered = false
+    func body(content: Content) -> some View {
+        content
+            .background(Color.primary.opacity(hovered && enabled ? 0.1 : 0), in: RoundedRectangle(cornerRadius: 5))
+            .onHover { hovered = $0 }
+    }
+}
+
+extension View {
+    func hoverHighlight(_ enabled: Bool = true) -> some View { modifier(HoverHighlight(enabled: enabled)) }
+}
+
 struct MenuRow: View {
     let title: String
-    var hoverTitle: String? = nil
+    /// What the row does, for VoiceOver, when its title says something else.
+    var actionTitle: String? = nil
     var shortcut: String? = nil
     var disabled = false
     let action: () -> Void
-    @State private var hovered = false
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
-                Text(hovered ? hoverTitle ?? title : title).lineLimit(1)
+                Text(title).lineLimit(1)
                 Spacer(minLength: 8)
-                if let shortcut { Text(shortcut).foregroundStyle(hovered ? Color.white.opacity(0.8) : .secondary) }
+                if let shortcut { Text(shortcut).foregroundStyle(.secondary) }
             }
             .padding(.horizontal, 10).frame(height: 23)
             .contentShape(Rectangle())
-            .foregroundStyle(hovered && !disabled ? Color.white : Color.primary)
-            .background(hovered && !disabled ? Color.accentColor : Color.clear, in: RoundedRectangle(cornerRadius: 5))
+            .hoverHighlight(!disabled)
         }
         .buttonStyle(.plain).disabled(disabled).opacity(disabled ? 0.5 : 1)
-        .onHover { hovered = $0 }.accessibilityLabel(title)
+        .accessibilityLabel(actionTitle ?? title)
+        .accessibilityValue(actionTitle == nil ? "" : title)
     }
 }
 
@@ -127,7 +142,7 @@ struct SubscriptionPanel: View {
         let window = account.tightestWindow
         let left = account.freshLeft(at: store.now)
         let tone = store.error == nil ? account.tone(at: store.now) : .unknown
-        // The bars show the level; the words are for VoiceOver.
+        // The bars show the level, in grey for a disabled account; the words are for VoiceOver.
         let level = left == nil && window?.leftPercent != nil
             ? Copy.text("lastKnown") + " · " + Copy.percent(window?.leftPercent) : Copy.percent(left)
         let renewal = Copy.duration(account.cooldownUntil.flatMap { $0 > store.now ? $0 : nil } ?? window?.resetsAt, now: store.now)
@@ -140,7 +155,7 @@ struct SubscriptionPanel: View {
                         quotaBar(account.claudeRowWindows[1], account: account, label: Copy.text("weekly"))
                     }
                 } else {
-                    LevelCapsule(left: tone == .unknown ? nil : left, tone: tone)
+                    LevelCapsule(left: tone == .unknown ? nil : left, tone: account.disabled ? .unknown : tone)
                 }
                 Text(name(account))
                     .lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
@@ -149,6 +164,7 @@ struct SubscriptionPanel: View {
             .padding(.horizontal, 10).frame(height: 25).contentShape(Rectangle())
             // A disabled account is dimmed; the words are for VoiceOver.
             .foregroundStyle(account.disabled ? .secondary : .primary)
+            .hoverHighlight()
         }
         .buttonStyle(.plain)
         .help(account.readError ?? "")
@@ -159,7 +175,7 @@ struct SubscriptionPanel: View {
         let current = account.readError == nil && store.error == nil && window?.isFresh(at: store.now) == true
         let tone = current ? window?.tone(at: store.now) ?? .unknown : .unknown
         let pace = tone == .unknown || tone == .out ? nil : window?.pace(at: store.now).map { ", " + Copy.pace($0.pace) }
-        return LevelCapsule(left: current ? window?.leftPercent : nil, tone: tone)
+        return LevelCapsule(left: current ? window?.leftPercent : nil, tone: account.disabled ? .unknown : tone)
             .help(label + ": " + Copy.percent(window?.leftPercent) + (pace ?? ""))
     }
     /// When an allowance renews: the time left, or the date and time once clicked.
@@ -190,7 +206,7 @@ struct SubscriptionPanel: View {
                     Text(name(account)).fontWeight(.medium).lineLimit(1)
                     Spacer()
                     if let plan = account.plan { Text(plan).foregroundStyle(.secondary) }
-                }.frame(height: 29).padding(.horizontal, 10).contentShape(Rectangle())
+                }.frame(height: 29).padding(.horizontal, 10).contentShape(Rectangle()).hoverHighlight()
             }.buttonStyle(.plain).accessibilityLabel(Copy.text("back"))
             separator
             HStack {
@@ -253,7 +269,7 @@ struct SubscriptionPanel: View {
             separator
             MenuRow(title: store.busy ? Copy.text("refreshing") : store.snapshot.map {
                 Copy.text("updated") + " " + Copy.timestamp($0.fetchedAt, now: store.now)
-            } ?? Copy.text("refresh"), hoverTitle: Copy.text("refresh"), shortcut: "⌘R", disabled: store.busy) {
+            } ?? Copy.text("refresh"), actionTitle: Copy.text("refresh"), shortcut: "⌘R", disabled: store.busy) {
                 Task { await store.refresh(force: true) }
             }.keyboardShortcut("r", modifiers: .command)
             MenuRow(title: Copy.text("dashboard")) { store.openDashboard() }

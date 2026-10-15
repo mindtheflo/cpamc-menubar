@@ -69,7 +69,7 @@ final class MenuBarDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.setAccessibilityLabel("Juice Bar · " + store.iconDescription)
     }
     @objc private func togglePopover() {
-        if menu.isVisible { menu.dismiss() } else { showPopover() }
+        menu.toggle()
     }
     private func showPopover() {
         menu.show()

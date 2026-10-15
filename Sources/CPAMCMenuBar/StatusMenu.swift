@@ -19,6 +19,10 @@ final class StatusMenu {
     private var globalMonitor: Any?
     private var localMonitor: Any?
     private var resignObserver: NSObjectProtocol?
+    /// When the menu last closed because it lost focus, which a press on the status item also causes.
+    private var lostFocusAt = Date.distantPast
+    /// Where the menu hangs from, set when it opens.
+    private var anchor = NSRect.zero
     var isVisible: Bool { panel.isVisible }
     /// Called after the menu closes.
     var onClose: (() -> Void)?
@@ -26,7 +30,10 @@ final class StatusMenu {
     init<Content: View>(rootView: Content, button: NSStatusBarButton, staysOpen: Bool) {
         self.button = button
         self.staysOpen = staysOpen
-        panel = MenuPanel(contentRect: .zero, styleMask: [.borderless], backing: .buffered, defer: false)
+        // Opening never waits for macOS to activate the app, which it can refuse, for example
+        // right after an update relaunched the app in the background.
+        panel = MenuPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -43,22 +50,34 @@ final class StatusMenu {
         sizeObservation = content.observe(\.preferredContentSize, options: [.new]) { [weak self] _, _ in
             Task { @MainActor in self?.position() }
         }
-        resignObserver = NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification,
-                                                               object: nil, queue: .main) { [weak self] _ in
+        resignObserver = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification,
+                                                               object: panel, queue: .main) { [weak self] _ in
             Task { @MainActor in
-                guard let self, !self.staysOpen else { return }
+                // A file picker opened from Settings takes the focus without closing the menu.
+                guard let self, self.isOpen, !self.staysOpen, NSApp.modalWindow == nil, !self.panel.isKeyWindow else { return }
+                self.lostFocusAt = Date()
                 self.dismiss()
             }
         }
     }
 
+    /// Opens or closes the menu from its status item.
+    func toggle() {
+        // The press that took the focus away already closed the menu; it mustn't reopen it.
+        if isVisible || Date().timeIntervalSince(lostFocusAt) < 0.4 { dismiss() } else { show() }
+    }
+
     func show() {
-        guard button?.window != nil else { return }
+        guard let button, let window = button.window else { return }
         isOpen = true
-        NSApp.activate(ignoringOtherApps: true)
+        // A menu bar manager such as Bartender can keep the item off screen, even right after the
+        // click that opens the menu. The menu then opens where the click was.
+        anchor = window.screen == nil ? NSRect(origin: NSEvent.mouseLocation, size: .zero)
+            : window.convertToScreen(button.convert(button.bounds, to: nil))
         position()
-        panel.makeKeyAndOrderFront(nil)
-        button?.highlight(true)
+        panel.orderFrontRegardless()
+        panel.makeKey()
+        button.highlight(true)
         guard !staysOpen, localMonitor == nil else { return }
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             Task { @MainActor in
@@ -92,16 +111,17 @@ final class StatusMenu {
     }
 
     private func position() {
-        guard let button, let window = button.window, let screen = window.screen else { return }
-        let anchor = window.convertToScreen(button.convert(button.bounds, to: nil))
+        let center = NSPoint(x: anchor.midX, y: anchor.midY)
+        guard let screen = NSScreen.screens.first(where: { NSMouseInRect(center, $0.frame, false) }) ?? NSScreen.main else { return }
         let fitting = content.preferredContentSize
         let size = fitting.width > 0 && fitting.height > 0 ? fitting : content.view.fittingSize
         let visible = screen.visibleFrame
         let width = max(360, size.width)
         let height = min(max(50, size.height), visible.height - 8)
-        let x = min(max(anchor.midX - width / 2, visible.minX + 4), visible.maxX - width - 4)
+        // Like other apps' menus, its left corner sits below the icon, moved left when there isn't room.
+        let x = min(max(anchor.minX, visible.minX + 4), visible.maxX - width - 4)
         let top = min(anchor.minY, visible.maxY) - 4
-        panel.setFrame(NSRect(x: x, y: top - height, width: width, height: height), display: true)
+        panel.setFrame(NSRect(x: x, y: max(visible.minY + 4, top - height), width: width, height: height), display: true)
     }
 
     deinit {
@@ -114,9 +134,11 @@ final class StatusMenu {
 extension NSOpenPanel {
     /// Shows the picker in front of the open menu, which stays open underneath instead of closing.
     @MainActor func runAboveMenu() -> NSApplication.ModalResponse {
-        let menu = NSApp.keyWindow as? MenuPanel
+        let menu = NSApp.windows.first { $0 is MenuPanel && $0.isVisible }
         menu?.level = .normal
         defer { menu?.level = .popUpMenu }
+        // The menu works without activating the app; the picker needs it to take the focus.
+        NSApp.activate(ignoringOtherApps: true)
         return runModal()
     }
 }
