@@ -223,7 +223,6 @@ struct SubscriptionPanel: View {
             separator
             HStack {
                 Text(Copy.text("accountEnabled"))
-                InfoPill(Copy.text("accountToggleHint"))
                 Spacer()
                 Toggle(Copy.text("accountEnabled"), isOn: Binding(
                     get: { !account.disabled },

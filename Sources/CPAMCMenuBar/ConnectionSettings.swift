@@ -45,7 +45,7 @@ struct ConnectionSettings: View {
         .task { await controls.refresh(configuration: store.configuration) }.onAppear { endpoint = store.configuration.proxyURL; keyFile = store.configuration.managementKeyFile }
     }
     private var general: some View {
-        SettingsSection(Copy.text("general"), footer: Copy.text("paceLegend") + " " + Copy.text("forecastHelp")) {
+        SettingsSection(Copy.text("general")) {
             IconSettings(store: store).id(language)
             SettingRow(Copy.text("launchAtLogin")) {
                 Toggle(Copy.text("launchAtLogin"), isOn: Binding(get: { controls.loginEnabled }, set: { value in
@@ -67,7 +67,7 @@ struct ConnectionSettings: View {
         }
     }
     private var proxy: some View {
-        SettingsSection(Copy.text("proxyStatus"), footer: Copy.text(controls.serviceAvailable ? "stopNote" : "serviceUnavailable")) {
+        SettingsSection(Copy.text("proxyStatus")) {
             HStack(spacing: 6) {
                 Circle().fill(store.error == nil && store.snapshot != nil ? Color.green : Color.secondary).frame(width: 7, height: 7)
                 Text(Copy.text(store.error == nil && store.snapshot != nil ? "connected" : controls.serviceAvailable && !controls.serviceRegistered ? "serviceStopped" : "notConnected"))
@@ -81,7 +81,7 @@ struct ConnectionSettings: View {
         }
     }
     private var updates: some View {
-        SettingsSection(Copy.text("updates"), footer: Copy.text("updatesFooter")) {
+        SettingsSection(Copy.text("updates")) {
             SettingRow(Copy.text("autoUpdate")) {
                 Toggle(Copy.text("autoUpdate"), isOn: $updater.automatic).labelsHidden().toggleStyle(.switch).controlSize(.small)
                     .disabled(!updater.isUpdatable)
@@ -137,7 +137,7 @@ struct ConnectionSettings: View {
         }
     }
     private var connection: some View {
-        SettingsSection(Copy.text("connection"), footer: Copy.text("keyNote")) {
+        SettingsSection(Copy.text("connection")) {
             VStack(alignment: .leading, spacing: 5) {
                 Text(Copy.text("proxyURL"))
                 TextField("http://127.0.0.1:8317", text: $endpoint).textFieldStyle(.roundedBorder).disabled(testing)

@@ -53,9 +53,8 @@ final class StatusMenu {
         resignObserver = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification,
                                                                object: panel, queue: .main) { [weak self] _ in
             Task { @MainActor in
-                // A file picker or a help popover can take focus without closing the menu.
-                guard let self, self.isOpen, !self.staysOpen, NSApp.modalWindow == nil, !self.contains(NSApp.keyWindow),
-                      self.panel.childWindows?.contains(where: \.isVisible) != true else { return }
+                // A file picker opened from Settings takes the focus without closing the menu.
+                guard let self, self.isOpen, !self.staysOpen, NSApp.modalWindow == nil, !self.panel.isKeyWindow else { return }
                 self.lostFocusAt = Date()
                 self.dismiss()
             }
@@ -90,21 +89,11 @@ final class StatusMenu {
             // Clicks in a file picker opened from Settings belong to the picker, not outside the menu.
             guard let self, NSApp.modalWindow == nil else { return event }
             if event.type == .keyDown, event.keyCode == 53 { self.dismiss(); return nil }
-            if event.type != .keyDown, !self.contains(event.window), event.window !== self.button?.window {
+            if event.type != .keyDown, event.window !== self.panel, event.window !== self.button?.window {
                 self.dismiss()
             }
             return event
         }
-    }
-
-    /// Help popovers are child windows: focusing or clicking them is still inside this menu.
-    private func contains(_ window: NSWindow?) -> Bool {
-        var current = window
-        while let candidate = current {
-            if candidate === panel { return true }
-            current = candidate.parent
-        }
-        return false
     }
 
     /// Closes the menu. Like a native menu, it reopens on the overview: the page, selection,

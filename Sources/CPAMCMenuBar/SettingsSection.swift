@@ -1,19 +1,16 @@
 import SwiftUI
 
-/// A titled group of native settings; supporting explanations live in its info pill.
+/// A titled group of compact native settings.
 struct SettingsSection<Content: View>: View {
     let title: String
-    let footer: String?
     let content: Content
-    init(_ title: String, footer: String? = nil, @ViewBuilder content: () -> Content) {
-        self.title = title; self.footer = footer; self.content = content()
+    init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.title = title; self.content = content()
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
-                if let footer { InfoPill(footer) }
-            }.padding(.horizontal, 4)
+            Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
             VStack(alignment: .leading, spacing: 10) { content }
                 .padding(10).frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
@@ -24,21 +21,14 @@ struct SettingsSection<Content: View>: View {
 /// A setting's name beside its control, or above it when the two don't fit side by side.
 struct SettingRow<Control: View>: View {
     let title: String
-    let help: String?
     let control: Control
-    init(_ title: String, help: String? = nil, @ViewBuilder control: () -> Control) {
-        self.title = title; self.help = help; self.control = control()
-    }
-    private var label: some View {
-        HStack(spacing: 5) {
-            Text(title).lineLimit(1)
-            if let help { InfoPill(help) }
-        }
+    init(_ title: String, @ViewBuilder control: () -> Control) {
+        self.title = title; self.control = control()
     }
     var body: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) { label; Spacer(minLength: 0); control }
-            VStack(alignment: .leading, spacing: 6) { label; control }
+            HStack(spacing: 12) { Text(title).lineLimit(1); Spacer(minLength: 0); control }
+            VStack(alignment: .leading, spacing: 6) { Text(title); control }
         }
     }
 }

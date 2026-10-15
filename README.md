@@ -35,7 +35,7 @@ Captured directly from the native app on macOS, cropped to the menu panel. These
 - **Global forecasts only**, across enabled subscriptions, separately for Codex and Claude. Blue means ample headroom, green on track, orange a predicted shortage before renewal. Grey means the evidence or scenarios do not agree; there is no level-based fallback colour. Red is a measured exhaustion, not a prediction. Individual licences show only quota left and reset times.
 - Paid credits and extra-usage availability separately from included subscription quotas.
 - Unused Claude promotional reset counts, without consuming them.
-- Native light/dark appearance, English/French, a privacy switch that shows numbered names instead of emails, launch-at-login, automatic updates and connection testing, grouped on one Settings page with info pills that open on hover or click and a project link.
+- Native light/dark appearance, English/French, a privacy switch that shows numbered names instead of emails, launch-at-login, automatic updates and connection testing, grouped on one compact Settings page with a project link.
 - Menu-like behavior: closing the menu discards the open page, selection and unsaved edits, so it always reopens on the overview.
 - Separate Claude session and weekly bars, left to right.
 - A **Use this account** toggle inside each subscription’s detail view. It flips the proxy’s own disable switch for that exact account, the one CPAMC uses, verifies the result, and leaves every other account untouched. An account counts as disabled exactly when the proxy says so.
