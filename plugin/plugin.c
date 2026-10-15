@@ -36,7 +36,7 @@ static int invoke(const char *method, const uint8_t *request, size_t len, clipro
     (void)request; (void)len;
     if (!method) return respond(out, "{\"ok\":false,\"error\":{\"code\":\"invalid_method\",\"message\":\"Method required\"}}");
     if (!strcmp(method, "plugin.register") || !strcmp(method, "plugin.reconfigure")) {
-        return respond(out, "{\"ok\":true,\"result\":{\"schema_version\":6,\"metadata\":{\"Name\":\"Juice Bar\",\"Version\":\"0.7.0\",\"Author\":\"Florian Pariset\",\"GitHubRepository\":\"https://github.com/mindtheflo/juice-bar\",\"ConfigFields\":[]},\"capabilities\":{\"management_api\":true}}}");
+        return respond(out, "{\"ok\":true,\"result\":{\"schema_version\":6,\"metadata\":{\"Name\":\"Juice Bar\",\"Version\":\"0.8.0\",\"Author\":\"Florian Pariset\",\"GitHubRepository\":\"https://github.com/mindtheflo/juice-bar\",\"ConfigFields\":[]},\"capabilities\":{\"management_api\":true}}}");
     }
     if (!strcmp(method, "management.register")) {
         return respond(out, "{\"ok\":true,\"result\":{\"resources\":[{\"Path\":\"/menubar\",\"Menu\":\"Juice Bar\",\"Description\":\"Claude and Codex subscriptions in your macOS menu bar.\"}]}}");

@@ -22,7 +22,7 @@ struct ConnectionSettings: View {
                     Image(systemName: "chevron.left").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
                     Text(Copy.text("settingsTitle")).fontWeight(.medium)
                     Spacer()
-                }.frame(height: 29).padding(.horizontal, 10).contentShape(Rectangle())
+                }.frame(height: 29).padding(.horizontal, 10).contentShape(Rectangle()).hoverHighlight()
             }.buttonStyle(.plain).accessibilityLabel(Copy.text("back"))
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
