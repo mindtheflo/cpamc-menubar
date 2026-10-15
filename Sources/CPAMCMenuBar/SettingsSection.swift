@@ -1,19 +1,5 @@
 import SwiftUI
 
-/// Supporting explanations stay in a hover tooltip, outside the compact settings layout.
-struct InfoPill: View {
-    let message: String
-    init(_ message: String) { self.message = message }
-    var body: some View {
-        Text("i").font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(.secondary).frame(width: 20, height: 16)
-            .background(Color.primary.opacity(0.07), in: Capsule())
-            .contentShape(Capsule()).help(message)
-            .accessibilityLabel(Copy.text("moreInfo"))
-            .accessibilityValue(message)
-    }
-}
-
 /// A titled group of native settings; supporting explanations live in its info pill.
 struct SettingsSection<Content: View>: View {
     let title: String
