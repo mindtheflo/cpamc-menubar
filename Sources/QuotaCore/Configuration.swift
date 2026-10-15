@@ -40,6 +40,7 @@ public struct Configuration: Codable, Sendable, Equatable {
               c.path.isEmpty || c.path == "/", (60...3600).contains(providerRefreshSeconds) else { throw ProxyError.invalidEndpoint }
         return url
     }
+    public var paceHistorySource: String { proxyURL + "|" + keyFileURL.path }
     public var keyFileURL: URL {
         URL(fileURLWithPath: (managementKeyFile as NSString).expandingTildeInPath)
     }

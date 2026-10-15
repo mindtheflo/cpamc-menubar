@@ -32,7 +32,7 @@ Captured directly from the native app on macOS, cropped to the menu panel. These
 
 - Claude and Codex accounts connected to your local CPAMC/CLIProxyAPI instance, named by their sign-in email, including disabled accounts. Disabled accounts are shown in grey but refresh and show everything the others do; they never count toward the menu-bar icon. Hover a provider’s header to hide or show its disabled accounts; the choice is remembered per provider.
 - Subscription plan, remaining allowance, five-hour/weekly windows, reset times, and local proxy cooldowns. The overview keeps to the bars and the time until each account's next renewal; an account's details show what each allowance has left and when it renews. Click a renewal time there to switch between the time left and the date and time.
-- **Pace** for each session and weekly allowance: at the rate you have used it since it renewed, will it run out first? Green is on track, orange runs out before it renews, blue is well under (less than half used by then), red is used up. An allowance's details say when it runs out at this pace, or about how much of it you will have used by its renewal.
+- **Global forecasts only**, across enabled subscriptions, separately for Codex and Claude. Blue means ample headroom, green on track, orange a predicted shortage before renewal. Grey means the evidence or scenarios do not agree; there is no level-based fallback colour. Red is a measured exhaustion, not a prediction. Individual licences show only quota left and reset times.
 - Paid credits and extra-usage availability separately from included subscription quotas.
 - Unused Claude promotional reset counts, without consuming them.
 - Native light/dark appearance, English/French, a privacy switch that shows numbered names instead of emails, launch-at-login, automatic updates and connection testing, grouped on one Settings page.
@@ -43,7 +43,11 @@ Captured directly from the native app on macOS, cropped to the menu panel. These
 
 The menu-bar icon pools the accounts enabled in the proxy: a bar’s 100% is all of their allowances together, and it shows what they have left between them. Each account counts the same, since the proxy reports usage as a share of each plan rather than tokens or dollars. Details expose model-specific windows separately. An old reading or an elapsed reset is not presented as newly available quota.
 
-Pace is the average rate since an allowance renewed, carried on to its renewal. Until about a quarter of the window has passed, the estimate leans on a moderate pace, so one early burst or a quiet start does not decide it. An icon bar pools first: the use its accounts are on pace for by their renewals is shared out over all their session (or weekly) allowances, so one busy account next to idle ones can still be on track. An account or icon bar is orange if any of its shared allowances is on pace to run out, and blue only if all of them are well under. Without a renewal time, the color follows the level instead: orange at 10% left or less.
+The forecast learns **quota changes**, not an average since the last reset. Demand comes from the last 24 comparable hours: a six-hour half-life baseline plus a 30-minute half-life burst estimate. The burst signal fades over the next six hours rather than letting quiet nights dominate the rest of the day. A local-hour profile distinguishes weekdays and weekends; Monday remembers Friday instead of learning two days of inactivity. Missing readings and sleep gaps are not zeros.
+
+A coupled simulation uses each licence’s session **and** weekly limits, restores capacity at its actual upcoming renewal, and repeats future cycles without banking idle renewals. It looks ahead at least 24 hours and through the last current weekly renewal. Lower/upper demand scenarios and two allocation policies must support a colour. These are conservative sensitivity bands, **not** a calibrated probability claim. [The mathematical model and its limits](docs/forecasting.md) explain the gates.
+
+History is collected while Juice Bar runs and survives restarts: up to 21 days of minimal local quota observations in `pace-history-v1.json`, beside the configuration file, with owner-only permissions. A new installation needs at least six observed comparable hours and recent coverage before predicting; there is no fabricated initial pace. Different or unknown plans within one provider remain neutral because the proxy does not provide comparable capacity units. Changing the enabled fleet starts a new evidence epoch; changing the proxy connection clears its history. No extra provider calls are made for forecasting.
 
 ## Menu-bar icon preferences
 
@@ -120,7 +124,7 @@ No analytics, cloud account, sign-in, or third-party packages are required. Conn
 swift run cpamc-quota-check
 ```
 
-This prints a live, redacted quota snapshot, with each allowance's pace and projected use by its renewal, and exits. Use `--show-names` only when you intentionally want account names in your terminal. Disabled accounts are queried read-only too; a failed reading leaves the account disabled and never makes it available for routing. `cpamc-menubar --demo` uses fictional example.com accounts and no network calls, for screenshots/UI review.
+This prints a live, redacted quota snapshot plus global provider forecasts, neutral reasons, observed coverage and forecast horizons, and exits. It reads the app’s existing history without writing to it. Individual allowances contain measurements only. Use `--show-names` only when you intentionally want account names in your terminal. Disabled accounts are queried read-only too; a failed reading leaves the account disabled and never makes it available for routing. `cpamc-menubar --demo` uses fictional example.com accounts and no network calls, for screenshots/UI review.
 
 ## CPAMC plugin integration
 
@@ -156,7 +160,7 @@ swift test
 swift run cpamc-menubar --demo
 ```
 
-The dependency-free `QuotaCore` target handles normalization, freshness, subscription aggregation, local proxy I/O and source updates. The SwiftUI target provides the native menu. Tests cover shared vs model-specific limits, pace, cooldowns, stale/unknown readings, disabled accounts, quota resets, provider payload formats, loopback-only connections, exact-account toggling, lost-response reconciliation, and updates built from a local repository.
+The dependency-free `QuotaCore` target handles normalization, freshness, subscription aggregation, local proxy I/O and source updates. The SwiftUI target provides the native menu. Tests cover shared vs model-specific limits, global forecast colours, bursts, inactive weekends, staggered renewals, coupled limits, confidence abstention, cooldowns, stale/unknown readings, disabled accounts, quota resets, provider payload formats, loopback-only connections, exact-account toggling, lost-response reconciliation, and updates built from a local repository.
 
 ### Releasing
 

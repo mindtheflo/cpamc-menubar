@@ -67,6 +67,28 @@ final class IconMetricsTests: XCTestCase {
         XCTAssertEqual(bars[1].tone,.out)
         XCTAssertEqual(bars[1].leftPercent,0)
     }
+    func testGlobalForecastColoursNeverFallbackToQuotaLevels() {
+        let snapshot = QuotaSnapshot(accounts: [account("a", weekly: 5)])
+        let untrained = IconMetrics.bars(snapshot: snapshot, preferences: .init(), at: now)
+        XCTAssertEqual(untrained[1].tone, .unknown)
+        let estimate = PaceForecast(pace: .under, gap: nil, horizon: now, shortageAt: nil,
+            pressureRange: 0.1...0.2, observedHours: 10, windowPaces: ["seven_day": .under], baselineDemand: [:], recentDemand: [:])
+        let trained = IconMetrics.bars(snapshot: snapshot, preferences: .init(), at: now, forecasts: [.claude: estimate])
+        XCTAssertEqual(trained[1].tone, .underPace)
+        let partial = QuotaSnapshot(accounts: snapshot.accounts + [.init(id: "missing", provider: .claude, label: "missing")])
+        XCTAssertEqual(IconMetrics.bars(snapshot: partial, preferences: .init(), at: now, forecasts: [.claude: estimate])[1].tone, .unknown)
+    }
+    func testWindowColoursKeepIndependentProviderBottlenecks() {
+        let snapshot = QuotaSnapshot(accounts: [account("a", session: 40, weekly: 50), account("b", provider: .codex, session: 80, weekly: 90)])
+        func estimate(_ pace: Pace) -> PaceForecast {
+            .init(pace: pace, gap: nil, horizon: now, shortageAt: nil, pressureRange: 0.1...0.2,
+                  observedHours: 10, windowPaces: ["five_hour": pace, "seven_day": .under], baselineDemand: [:], recentDemand: [:])
+        }
+        var prefs = IconPreferences(); prefs.content = .windows
+        let bars = IconMetrics.bars(snapshot: snapshot, preferences: prefs, at: now, forecasts: [.claude: estimate(.under), .codex: estimate(.over)])
+        XCTAssertEqual(bars.map(\.tone), [.overPace, .underPace])
+        XCTAssertEqual(IconMetrics.bars(snapshot: snapshot, preferences: prefs, at: now, forecasts: [.claude: estimate(.under)]).map(\.tone), [.unknown, .unknown])
+    }
     func testIconPreferencesPersistAndCorruptionFallsBackToVertical() {
         let suite = "cpamc-icon-test-" + UUID().uuidString
         let defaults = UserDefaults(suiteName:suite)!

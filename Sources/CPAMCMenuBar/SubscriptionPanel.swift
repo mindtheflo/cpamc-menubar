@@ -124,12 +124,13 @@ struct SubscriptionPanel: View {
                             if !accounts.isEmpty {
                                 ProviderHeader(provider: provider, disabledCount: accounts.filter(\.disabled).count,
                                                hidesDisabled: hidesDisabled(provider))
+                                forecastLine(provider)
                                 ForEach(shown(accounts)) { account in accountRow(account) }
                                 if provider == .codex { separator }
                             }
                         }
                     }
-                }.frame(height: min(330, CGFloat(shown(snapshot.accounts).count) * 25 + 70))
+                }.frame(height: min(330, CGFloat(shown(snapshot.accounts).count) * 25 + 110))
             }
             if let error = store.error {
                 Text(Copy.isFrench ? Copy.text("unknownError") : error)
@@ -137,6 +138,19 @@ struct SubscriptionPanel: View {
             }
             footer
         }
+    }
+    private func forecastLine(_ provider: Provider) -> some View {
+        let forecast = store.currentForecasts[provider]
+        let pace = store.error == nil ? forecast?.pace : nil
+        let tone = pace.map { MeterTone(left: 100, pace: $0) } ?? .unknown
+        let gapKey = forecast?.gap.map { "forecast" + $0.rawValue.prefix(1).uppercased() + $0.rawValue.dropFirst() } ?? "forecastUnknown"
+        let text = pace.map(Copy.pace) ?? Copy.text(gapKey)
+        return HStack(spacing: 5) {
+            Circle().fill(tone.color).frame(width: 5, height: 5)
+            Text(text).font(.system(size: 11)).foregroundStyle(.secondary)
+            Spacer()
+        }.padding(.horizontal, 10).padding(.bottom, 4)
+            .help(Copy.text("forecastHint"))
     }
     private func accountRow(_ account: SubscriptionAccount) -> some View {
         let window = account.tightestWindow
@@ -146,7 +160,6 @@ struct SubscriptionPanel: View {
         let level = left == nil && window?.leftPercent != nil
             ? Copy.text("lastKnown") + " · " + Copy.percent(window?.leftPercent) : Copy.percent(left)
         let renewal = Copy.duration(account.cooldownUntil.flatMap { $0 > store.now ? $0 : nil } ?? window?.resetsAt, now: store.now)
-        let pace = tone == .unknown || tone == .out ? nil : account.pace(at: store.now).map { ", " + Copy.pace($0) }
         return Button { store.accountUpdateError = nil; selected = account.id } label: {
             HStack(spacing: 10) {
                 if account.provider == .claude {
@@ -155,7 +168,7 @@ struct SubscriptionPanel: View {
                         quotaBar(account.claudeRowWindows[1], account: account, label: Copy.text("weekly"))
                     }
                 } else {
-                    LevelCapsule(left: tone == .unknown ? nil : left, tone: account.disabled ? .unknown : tone)
+                    LevelCapsule(left: store.error == nil ? left : nil, tone: account.disabled ? .unknown : tone)
                 }
                 Text(name(account))
                     .lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
@@ -168,15 +181,14 @@ struct SubscriptionPanel: View {
         }
         .buttonStyle(.plain)
         .help(account.readError ?? "")
-        .accessibilityLabel("\(name(account))\(account.disabled ? ", " + Copy.text("disabled") : ""), \(level)\(pace ?? ""), \(renewal ?? "")")
+        .accessibilityLabel("\(name(account))\(account.disabled ? ", " + Copy.text("disabled") : ""), \(level), \(renewal ?? "")")
         .accessibilityValue(account.provider == .claude ? Copy.text("session") + ": " + Copy.percent(account.claudeRowWindows[0]?.leftPercent) + ", " + Copy.text("weekly") + ": " + Copy.percent(account.claudeRowWindows[1]?.leftPercent) : "")
     }
     private func quotaBar(_ window: QuotaWindow?, account: SubscriptionAccount, label: String) -> some View {
         let current = account.readError == nil && store.error == nil && window?.isFresh(at: store.now) == true
         let tone = current ? window?.tone(at: store.now) ?? .unknown : .unknown
-        let pace = tone == .unknown || tone == .out ? nil : window?.pace(at: store.now).map { ", " + Copy.pace($0.pace) }
         return LevelCapsule(left: current ? window?.leftPercent : nil, tone: account.disabled ? .unknown : tone)
-            .help(label + ": " + Copy.percent(window?.leftPercent) + (pace ?? ""))
+            .help(label + ": " + Copy.percent(window?.leftPercent))
     }
     /// When an allowance renews: the time left, or the date and time once clicked.
     private func renewal(_ reset: Date) -> some View {
@@ -187,16 +199,6 @@ struct SubscriptionPanel: View {
         }
         .buttonStyle(.plain).layoutPriority(1)
         .accessibilityLabel(renewalDates ? Copy.text("renews") + " " + text : Copy.text("renewsIn", relative))
-    }
-    /// Where the window's pace leads by its renewal.
-    private func paceLine(_ estimate: PaceEstimate) -> String? {
-        let projected = estimate.projectedUse
-        let share = "\(projected < 10 ? Int(projected.rounded()) : Int((projected / 5).rounded()) * 5)%"
-        switch estimate.pace {
-        case .over: return Copy.duration(estimate.runsOutAt, now: store.now).map { Copy.text("paceOverLine", $0) }
-        case .steady: return Copy.text("paceSteadyLine", share)
-        case .under: return Copy.text("paceUnderLine", share)
-        }
     }
     private func detail(_ account: SubscriptionAccount) -> some View {
         VStack(spacing: 0) {
@@ -241,9 +243,6 @@ struct SubscriptionPanel: View {
                             .foregroundStyle([.out, .low, .overPace].contains(tone) ? tone.color : .secondary)
                         if let reset = window.resetsAt, reset <= store.now {
                             Text(Copy.text("awaiting")).font(.system(size: 11)).foregroundStyle(.secondary)
-                        }
-                        if fresh, tone != .out, let line = window.pace(at: store.now).flatMap(paceLine) {
-                            Text(line).font(.system(size: 11)).foregroundStyle(.secondary)
                         }
                     }
                 }.padding(.horizontal, 10).padding(.vertical, 6)
