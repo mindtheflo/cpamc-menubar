@@ -32,8 +32,9 @@ final class AccountToggleTests: XCTestCase {
         ToggleProtocol.handler = nil
         try FileManager.default.removeItem(at: directory)
     }
-    private func records(_ disabled: Bool, includeTarget: Bool = true) -> Data {
-        let target: [String: Any] = ["auth_index":"target", "name":"claude-example.json", "provider":"claude", "disabled":disabled]
+    private func records(_ disabled: Bool, includeTarget: Bool = true, status: String? = nil) -> Data {
+        let target: [String: Any] = ["auth_index":"target", "name":"claude-example.json", "provider":"claude", "disabled":disabled,
+                                     "status":status ?? (disabled ? "disabled" : "active")]
         let other: [String: Any] = ["auth_index":"other", "name":"claude-other.json", "provider":"claude", "disabled":true]
         return try! JSONSerialization.data(withJSONObject: ["files": includeTarget ? [target,other] : [other]])
     }
@@ -99,5 +100,21 @@ final class AccountToggleTests: XCTestCase {
         let result = try await client.setAccountEnabled(account,enabled:false)
         XCTAssertTrue(result.disabled)
         XCTAssertEqual(requests,1)
+    }
+    func testAccountTheProxyMarksDisabledIsTreatedAsDisabled() async throws {
+        var requests = 0
+        ToggleProtocol.handler = { request in requests += 1; XCTAssertEqual(request.httpMethod,"GET"); return (200,self.records(false,status:"disabled")) }
+        let result = try await client.setAccountEnabled(account,enabled:false)
+        XCTAssertTrue(result.disabled)
+        XCTAssertEqual(requests,1)
+    }
+    func testEnablingIsConfirmedOnlyOnceTheProxyNoLongerMarksItDisabled() async throws {
+        var enabled = false
+        ToggleProtocol.handler = { request in
+            if request.httpMethod == "PATCH" { enabled = true; return (200,Data("{}".utf8)) }
+            return (200,self.records(false,status:enabled ? "active" : "disabled"))
+        }
+        let result = try await client.setAccountEnabled(account,enabled:true)
+        XCTAssertFalse(result.disabled)
     }
 }

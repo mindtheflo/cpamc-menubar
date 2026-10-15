@@ -19,14 +19,12 @@ final class QuotaStore: ObservableObject {
     }
     var iconDescription: String {
         return iconMetrics.map { metric in
-            let value: String
-            if metric.capacity == 200, let left = metric.leftPercent {
-                let amount = "\(Int(left.rounded()))/200% " + Copy.text("combinedLeft")
-                if metric.isPartial {
-                    let missing = metric.missingProviders.map { $0 == .codex ? "OpenAI" : "Claude" }.joined(separator: " + ")
-                    value = "≥" + amount + " (" + missing + " " + Copy.text("notReported") + ")"
-                } else { value = amount }
-            } else { value = Copy.percent(metric.leftPercent) }
+            var value = Copy.percent(metric.leftPercent)
+            if metric.isPartial {
+                // Accounts without a reading count as empty, so the total is at least this much.
+                if metric.leftPercent != nil { value = "≥" + value }
+                value += " (" + Copy.text(metric.missing == 1 ? "notReportedOne" : "notReportedMany", "\(metric.missing)") + ")"
+            }
             let pace = metric.tone == .unknown || metric.tone == .out ? nil : metric.pace.map { ", " + Copy.pace($0) }
             return Copy.text(metric.label) + ": " + value + (pace ?? "")
         }.joined(separator: " · ")
@@ -102,12 +100,5 @@ final class QuotaStore: ObservableObject {
     }
     func openDashboard() {
         if let url = configuration.dashboardURL { NSWorkspace.shared.open(url) }
-    }
-    var summaries: [ProviderSummary] {
-        guard let snapshot else { return [] }
-        return Provider.allCases.compactMap { provider in
-            let summary = snapshot.summary(provider, at: now)
-            return summary.accountCount > 0 ? summary : nil
-        }
     }
 }

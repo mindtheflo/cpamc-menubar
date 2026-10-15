@@ -30,20 +30,20 @@ Captured directly from the native app on macOS, cropped to the menu panel. These
 
 ## What it shows
 
-- Claude and Codex accounts connected to your local CPAMC/CLIProxyAPI instance, including disabled accounts. Disabled accounts show readable usage but never count as available; rows without a usage reading cannot be opened. Hover a provider’s header to hide or show its disabled accounts; the choice is remembered per provider.
+- Claude and Codex accounts connected to your local CPAMC/CLIProxyAPI instance, named by their sign-in email, including disabled accounts. Disabled accounts are dimmed but refresh and show everything the others do; they never count toward the menu-bar icon. Hover a provider’s header to hide or show its disabled accounts; the choice is remembered per provider.
 - Subscription plan, remaining allowance, five-hour/weekly windows, reset times, and local proxy cooldowns. The overview keeps to the bars and the time until each account's next renewal; an account's details show what each allowance has left and when it renews. Click a renewal time there to switch between the time left and the date and time.
 - **Pace** for each session and weekly allowance: at the rate you have used it since it renewed, will it run out first? Green is on track, orange runs out before it renews, blue is well under (less than half used by then), red is used up. An allowance's details say when it runs out at this pace, or about how much of it you will have used by its renewal.
 - Paid credits and extra-usage availability separately from included subscription quotas.
 - Unused Claude promotional reset counts, without consuming them.
-- Native light/dark appearance, English/French, a privacy switch, launch-at-login, automatic updates and connection testing, grouped on one Settings page.
+- Native light/dark appearance, English/French, a privacy switch that shows numbered names instead of emails, launch-at-login, automatic updates and connection testing, grouped on one Settings page.
 - Menu-like behavior: closing the menu discards the open page, selection and unsaved edits, so it always reopens on the overview.
 - Separate Claude session and weekly bars, left to right.
-- A **Use this account** toggle inside each subscription’s detail view. It changes that exact account in CPAMC, verifies the result, and leaves every other account untouched.
+- A **Use this account** toggle inside each subscription’s detail view. It flips the proxy’s own disable switch for that exact account, the one CPAMC uses, verifies the result, and leaves every other account untouched. An account counts as disabled exactly when the proxy says so.
 - Explicit Start/Stop controls for a matching local CLIProxyAPI login service.
 
-Percentages are **not added across subscription accounts**. By default, the menu-bar icon shows the best available account's tightest shared allowance for each provider, in OpenAI/Claude order. Details expose model-specific windows separately. An old reading or an elapsed reset is not presented as newly available quota.
+The menu-bar icon pools the accounts enabled in the proxy: a bar’s 100% is all of their allowances together, and it shows what they have left between them. Each account counts the same, since the proxy reports usage as a share of each plan rather than tokens or dollars. Details expose model-specific windows separately. An old reading or an elapsed reset is not presented as newly available quota.
 
-Pace is the average rate since an allowance renewed, carried on to its renewal. Until about a quarter of the window has passed, the estimate leans on a moderate pace, so one early burst or a quiet start does not decide it. An account or icon bar is orange if any of its shared allowances is on pace to run out, and blue only if all of them are well under. Without a renewal time, the color follows the level instead: orange at 10% left or less.
+Pace is the average rate since an allowance renewed, carried on to its renewal. Until about a quarter of the window has passed, the estimate leans on a moderate pace, so one early burst or a quiet start does not decide it. An icon bar pools first: the use its accounts are on pace for by their renewals is shared out over all their session (or weekly) allowances, so one busy account next to idle ones can still be on track. An account or icon bar is orange if any of its shared allowances is on pace to run out, and blue only if all of them are well under. Without a renewal time, the color follows the level instead: orange at 10% left or less.
 
 ## Menu-bar icon preferences
 
@@ -51,10 +51,10 @@ Open **Settings** for a live preview and automatically saved preferences:
 
 - **Vertical or horizontal** — two side-by-side gauges or two stacked gauges.
 - **Color or black & white** — pace colors or native macOS template tint, matching neighboring menu-bar icons and adapting to light/dark backgrounds. In black & white, the icon's tooltip still tells the pace.
-- **OpenAI + Claude** — each provider's best available account, using its tighter session/weekly limit.
-- **Session + weekly** — sum OpenAI + Claude, out of 200% per window (100% per provider). One best available account per provider contributes both windows. This equal-weight quota indicator is not a combined token/credit balance. If one provider has no reading, the combined bar shows the known contribution as a lower bound (≥), still out of 200%, and names the unreported provider in the tooltip. Missing values never erase known allowance. Both missing means unknown, not zero.
+- **OpenAI + Claude** — each provider’s enabled accounts together, out of 100%. Each account adds what its tighter session/weekly limit leaves.
+- **Session + weekly** — the session (or weekly) allowance of every enabled account, OpenAI and Claude together, out of 100%. A plan without a session limit adds nothing to the session bar. An enabled account without a current reading counts as empty, so the bar is a lower bound (≥) and the tooltip says how many accounts are not reported. No reading at all means unknown, not zero.
 
-The first metric is on the left (vertical) or top (horizontal). Disabled, stale and unavailable accounts do not contribute usable quota. Unreported limits and confirmed zero quota keep an empty outline; the tooltip distinguishes “No reading” from exhausted quota. The default is vertical, color, OpenAI + Claude. The app logo is the vertical **Twin Meter** design, paired with the Juice Bar wordmark.
+The first metric is on the left (vertical) or top (horizontal). Disabled accounts are left out; old readings and elapsed resets are never counted as allowance. Unreported limits and confirmed zero quota keep an empty outline; the tooltip distinguishes “No reading” from exhausted quota. The default is vertical, color, OpenAI + Claude. The app logo is the vertical **Twin Meter** design, paired with the Juice Bar wordmark.
 
 ## Requirements
 
@@ -120,7 +120,7 @@ No analytics, cloud account, sign-in, or third-party packages are required. Conn
 swift run cpamc-quota-check
 ```
 
-This prints a live, redacted quota snapshot, with each allowance's pace and projected use by its renewal, and exits. Use `--show-names` only when you intentionally want account names in your terminal. Disabled accounts are queried read-only too; a failed reading leaves the account disabled and never makes it available for routing. `cpamc-menubar --demo` uses fictional labels and no network calls, for screenshots/UI review.
+This prints a live, redacted quota snapshot, with each allowance's pace and projected use by its renewal, and exits. Use `--show-names` only when you intentionally want account names in your terminal. Disabled accounts are queried read-only too; a failed reading leaves the account disabled and never makes it available for routing. `cpamc-menubar --demo` uses fictional example.com accounts and no network calls, for screenshots/UI review.
 
 ## CPAMC plugin integration
 

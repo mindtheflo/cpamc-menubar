@@ -22,23 +22,6 @@ final class QuotaTests: XCTestCase {
         XCTAssertFalse(a.isReady(at: now))
         XCTAssertEqual(a.extraUsageEnabled, false)
     }
-    func testProviderUsesBestAccountAndDoesNotAddPercentages() {
-        let snapshot = QuotaSnapshot(accounts: [account("one", used: 31), account("two", used: 4)])
-        let summary = snapshot.summary(.claude, at: now)
-        XCTAssertEqual(summary.leftPercent, 96)
-        XCTAssertEqual(summary.readyCount, 2)
-    }
-    func testDisabledAccountCannotMakeExhaustedPoolLookAvailable() {
-        let snapshot = QuotaSnapshot(accounts: [account("enabled", used: 100), account("disabled", used: 0, disabled: true)])
-        XCTAssertEqual(snapshot.summary(.claude, at: now).leftPercent, 0)
-        XCTAssertEqual(snapshot.summary(.claude, at: now).accountCount, 1)
-        XCTAssertEqual(snapshot.summary(.claude, at: now).tone, .out)
-    }
-    func testUnknownAccountPreventsClaimingWholeProviderIsExhausted() {
-        let snapshot = QuotaSnapshot(accounts: [account("out", used: 100), account("unknown", used: nil)])
-        XCTAssertEqual(snapshot.summary(.claude, at: now).tone, .unknown)
-        XCTAssertNil(snapshot.summary(.claude, at: now).leftPercent)
-    }
     func testResetPassingDoesNotFabricateNewQuota() {
         let a = account("a", used: 100)
         let afterReset = now.addingTimeInterval(3601)
@@ -57,7 +40,6 @@ final class QuotaTests: XCTestCase {
         a.unavailable = true
         XCTAssertEqual(a.freshLeft(at: now), 50)
         XCTAssertFalse(a.isReady(at: now))
-        XCTAssertEqual(QuotaSnapshot(accounts: [a]).summary(.claude, at: now).nextReset, a.cooldownUntil)
     }
     func testModelScopedExhaustionIsNotSharedSubscriptionExhaustion() {
         var a = account("a", used: 30)
@@ -133,13 +115,23 @@ final class QuotaTests: XCTestCase {
         XCTAssertEqual(a.plan, "Max 20×")
     }
 
-    func testDisabledUsageCanBeInspectedWithoutMakingItRoutable() {
-        var a = SubscriptionAccount(id: "off", provider: .claude, label: "Off", disabled: true)
-        XCTAssertFalse(a.canInspect)
-        a.windows = [window(20)]
-        XCTAssertTrue(a.canInspect)
+    func testDisabledAccountShowsItsUsageWithoutBeingRoutable() {
+        let a = account("off", used: 20, disabled: true)
+        XCTAssertEqual(a.freshLeft(at: now), 80)
+        XCTAssertEqual(a.tone(at: now), .underPace)
         XCTAssertFalse(a.isReady(at: now))
-        XCTAssertNil(a.freshLeft(at: now))
+    }
+    func testAccountIsDisabledAsTheProxyDecidesAndNamedByItsEmail() throws {
+        let off = try XCTUnwrap(QuotaParser.record(try json("""
+        {"provider":"claude","auth_index":"a","label":"Work","email":"example@example.invalid","disabled":false,"status":"disabled"}
+        """)))
+        XCTAssertTrue(off.disabled)
+        XCTAssertEqual(off.label, "example@example.invalid")
+        let on = try XCTUnwrap(QuotaParser.record(try json("""
+        {"provider":"codex","auth_index":"b","label":"Work","email":" ","disabled":false,"status":"active"}
+        """)))
+        XCTAssertFalse(on.disabled)
+        XCTAssertEqual(on.label, "Work")
     }
     func testClaudeRowAlwaysOrdersSessionBeforeWeeklyAndDoesNotSubstituteModelQuota() {
         var a = account("a", used: 71)

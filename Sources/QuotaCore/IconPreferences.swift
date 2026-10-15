@@ -21,63 +21,58 @@ public struct IconPreferences: Codable, Equatable, Sendable {
 
 public struct IconMetric: Sendable, Equatable {
     public let label: String
+    /// What the enabled accounts behind the bar have left together, out of all their allowances.
     public let leftPercent: Double?
-    public let capacity: Double
-    public let missingProviders: [Provider]
+    /// Enabled accounts without a current reading: counted as nothing left, so the bar shows at least this much.
+    public let missing: Int
     /// How fast the allowances behind the bar are being used, when it can be told.
     public let pace: Pace?
-    public var isPartial: Bool { !missingProviders.isEmpty }
-    public var normalizedPercent: Double? { leftPercent.map { $0 / capacity * 100 } }
+    public var isPartial: Bool { missing > 0 }
     public var tone: MeterTone {
-        guard let leftPercent = normalizedPercent else { return .unknown }
+        guard let leftPercent else { return .unknown }
         if leftPercent <= 0 && isPartial { return .unknown }
         return MeterTone(left: leftPercent, pace: pace)
     }
-    public init(label: String, leftPercent: Double?, capacity: Double = 100, missingProviders: [Provider] = [], pace: Pace? = nil) {
-        self.label = label; self.leftPercent = leftPercent; self.capacity = capacity; self.missingProviders = missingProviders
-        self.pace = pace
+    public init(label: String, leftPercent: Double?, missing: Int = 0, pace: Pace? = nil) {
+        self.label = label; self.leftPercent = leftPercent; self.missing = missing; self.pace = pace
     }
 }
 
 public enum IconMetrics {
+    /// Each bar pools the accounts enabled in the proxy: together their allowances are 100%, each account counting
+    /// the same, since the proxy reports usage as a share of each plan rather than tokens or dollars.
     public static func bars(snapshot: QuotaSnapshot?, preferences: IconPreferences, at now: Date, offline: Bool = false) -> [IconMetric] {
-        let snapshot = offline ? nil : snapshot
+        let enabled = (offline ? nil : snapshot)?.accounts.filter { !$0.disabled } ?? []
         switch preferences.content {
         case .providers:
+            // An account can use only what its tighter allowance leaves.
             return Provider.allCases.map { provider in
-                let account = bestAccount(snapshot, provider: provider, at: now)
-                return IconMetric(label: provider == .codex ? "openai" : "claude", leftPercent: account?.freshLeft(at: now),
-                                  pace: account?.pace(at: now))
+                let accounts = enabled.filter { $0.provider == provider }
+                let read = accounts.filter { $0.freshLeft(at: now) != nil }
+                let left = read.compactMap { $0.freshLeft(at: now) }
+                return IconMetric(label: provider == .codex ? "openai" : "claude",
+                                  leftPercent: left.isEmpty ? nil : left.reduce(0, +) / Double(accounts.count),
+                                  missing: accounts.count - read.count,
+                                  pace: Pace.combined(read.flatMap { $0.windows.filter { !$0.modelScoped } }, at: now))
             }
         case .windows:
-            // Pick one account per provider, then sum equally weighted provider allowances.
-            // Keep each provider's session and weekly values tied to that same account.
-            let accounts = Provider.allCases.map { bestAccount(snapshot, provider: $0, at: now) }
             return ["five_hour", "seven_day"].map { id in
-                let windows = accounts.map { account -> QuotaWindow? in
-                    guard let window = account?.windows.first(where: { $0.id == id && !$0.modelScoped }),
-                          window.isFresh(at: now) else { return nil }
-                    return window
+                var windows: [QuotaWindow] = [], missing = 0
+                for account in enabled {
+                    let shared = account.windows.filter { !$0.modelScoped }
+                    // A plan without this allowance adds nothing to it; an account not read yet may have one.
+                    guard let window = shared.first(where: { $0.id == id }) else {
+                        if shared.isEmpty { missing += 1 }
+                        continue
+                    }
+                    if account.readError == nil, window.isFresh(at: now), window.leftPercent != nil { windows.append(window) }
+                    else { missing += 1 }
                 }
-                let readings = windows.map { $0?.leftPercent }
-                let known = readings.compactMap { $0 }
-                let missing = zip(Provider.allCases, readings).compactMap { provider, reading in reading == nil ? provider : nil }
-                // Missing quota is not zero and must not erase another provider's known allowance.
-                // A partial sum is a lower bound, still scaled against both providers' full capacity.
+                let left = windows.compactMap(\.leftPercent)
                 return IconMetric(label: id == "five_hour" ? "session" : "weekly",
-                                  leftPercent: known.isEmpty ? nil : known.reduce(0, +), capacity: 200,
-                                  missingProviders: missing, pace: Pace.combined(windows.compactMap { $0 }, at: now))
+                                  leftPercent: left.isEmpty ? nil : left.reduce(0, +) / Double(left.count + missing),
+                                  missing: missing, pace: Pace.combined(windows, at: now))
             }
         }
-    }
-    private static func bestAccount(_ snapshot: QuotaSnapshot?, provider: Provider, at now: Date) -> SubscriptionAccount? {
-        let known = (snapshot?.accounts ?? []).filter { $0.provider == provider && !$0.disabled && $0.freshLeft(at: now) != nil }
-        let ready = known.filter { $0.isReady(at: now) }
-        // If none are ready, a confirmed exhausted allowance is still useful. Do not advertise paused positive quota.
-        let candidates = ready.isEmpty ? known.filter { $0.freshLeft(at: now) == 0 } : ready
-        return candidates.sorted {
-            let a = $0.freshLeft(at: now) ?? -1, b = $1.freshLeft(at: now) ?? -1
-            return a == b ? $0.id < $1.id : a > b
-        }.first
     }
 }

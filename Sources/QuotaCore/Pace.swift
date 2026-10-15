@@ -12,13 +12,22 @@ public enum Pace: String, Codable, Sendable {
     /// allowance per window, so that one early burst or a quiet start doesn't decide it.
     static let priorWeight = 0.25, priorRate = 0.75
 
-    /// Allowances drawn on together: one on pace to run out decides, and they are well under only if all are.
-    /// An unused allowance whose pace can't be told doesn't count; one in use leaves the pace unknown.
+    /// Allowances drawn on together. Those of one kind, such as several accounts' sessions, pool: their use by the
+    /// renewal is shared out over all of them. Then one kind on pace to run out decides, and they are well under only
+    /// if every kind is. An unused allowance whose pace can't be told adds room but no pace; one in use leaves the
+    /// pace unknown.
     public static func combined(_ windows: [QuotaWindow], at now: Date) -> Pace? {
         var paces: [Pace] = []
-        for window in windows {
-            if let estimate = window.pace(at: now) { paces.append(estimate.pace) }
-            else if window.usedPercent != 0 { return nil }
+        for kind in Set(windows.map(\.id)) {
+            let pool = windows.filter { $0.id == kind }
+            var projected = 0.0, estimated = false
+            for window in pool {
+                if let estimate = window.pace(at: now) { projected += estimate.projectedUse; estimated = true }
+                else if window.usedPercent != 0 { return nil }
+            }
+            guard estimated else { continue }
+            let share = projected / Double(pool.count)
+            paces.append(share > 100 ? .over : share < 50 ? .under : .steady)
         }
         guard !paces.isEmpty else { return nil }
         return paces.contains(.over) ? .over : paces.allSatisfy { $0 == .under } ? .under : .steady
