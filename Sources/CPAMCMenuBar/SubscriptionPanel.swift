@@ -83,7 +83,7 @@ struct SubscriptionPanel: View {
     @State private var settings = false
     @State private var hoveredAccount: String?
     @State private var hoveredLimit: String?
-    /// Whether the details show renewals as a date and time rather than the time left. A click on one switches them all.
+    /// Weekly renewals can switch to dates; five-hour sessions always keep a countdown.
     @State private var renewalDates = false
 
     var body: some View {
@@ -179,7 +179,7 @@ struct SubscriptionPanel: View {
             .accessibilityLabel(name(account) + (account.disabled ? ", " + Copy.text("disabled") : ""))
             .accessibilityValue(accountPercentages(account))
             .accessibilityHint(Copy.text("accountDetails"))
-            if let reset, reset > store.now { renewal(reset) }
+            if let reset, reset > store.now { renewal(reset, relativeOnly: window?.id == "five_hour") }
         }
         .padding(.horizontal, 10).frame(height: 25)
         .foregroundStyle(account.disabled ? .secondary : .primary)
@@ -190,18 +190,25 @@ struct SubscriptionPanel: View {
         return LevelCapsule(left: current ? window?.leftPercent : nil, tone: account.disabled ? .unknown : tone)
             .help(label + ": " + Copy.percent(window?.leftPercent))
     }
-    /// When an allowance renews: the time left, or the date and time once clicked.
-    private func renewal(_ reset: Date) -> some View {
+    /// Session renewals always show elapsed-relative time; longer windows can switch to a date.
+    private func renewal(_ reset: Date, relativeOnly: Bool = false) -> some View {
         let relative = Copy.duration(reset, now: store.now) ?? ""
-        let text = renewalDates ? Copy.text("on") + " " + Copy.moment(reset, now: store.now)
-                                : Copy.text("in") + " " + relative
-        return Button { renewalDates.toggle() } label: {
-            Text(text).font(.system(size: 11)).monospacedDigit().lineLimit(1).contentShape(Rectangle())
-                .foregroundStyle(.secondary).padding(.vertical, 4).hoverHighlight()
+        let absolute = renewalDates && !relativeOnly
+        let text = absolute ? Copy.text("on") + " " + Copy.moment(reset, now: store.now)
+                            : Copy.text("in") + " " + relative
+        let label = Text(text).font(.system(size: 11)).monospacedDigit().lineLimit(1)
+            .foregroundStyle(.secondary).padding(.vertical, 4)
+        return Group {
+            if relativeOnly { label }
+            else {
+                Button { renewalDates.toggle() } label: {
+                    label.contentShape(Rectangle()).hoverHighlight()
+                }.buttonStyle(.plain)
+            }
         }
-        .buttonStyle(.plain).layoutPriority(1)
-        .help(Copy.text("timeHint") + " " + Copy.text("on") + " " + Copy.timestamp(reset, now: store.now, includeDate: true))
-        .accessibilityLabel(renewalDates ? Copy.text("renews") + " " + text : Copy.text("renewsIn", relative))
+        .layoutPriority(1)
+        .help((relativeOnly ? "" : Copy.text("timeHint") + " ") + Copy.text("on") + " " + Copy.timestamp(reset, now: store.now, includeDate: true))
+        .accessibilityLabel(absolute ? Copy.text("renews") + " " + text : Copy.text("renewsIn", relative))
     }
     private func detail(_ account: SubscriptionAccount) -> some View {
         VStack(spacing: 0) {
@@ -243,8 +250,12 @@ struct SubscriptionPanel: View {
                         .help(Copy.text(window.id) + ": " + value)
                         .accessibilityLabel(Copy.text(window.id)).accessibilityValue(value)
                     if let reset = window.resetsAt {
-                        if reset > store.now { renewal(reset) }
+                        if reset > store.now { renewal(reset, relativeOnly: window.id == "five_hour") }
                         else { Text(Copy.text("awaiting")).font(.system(size: 11)).foregroundStyle(.secondary) }
+                    } else if window.id == "five_hour" {
+                        Text(Copy.text(fresh && window.usedPercent == 0 ? "sessionIdle" : "renewalUnknown"))
+                            .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                            .help(Copy.text(fresh && window.usedPercent == 0 ? "sessionIdleHint" : "renewalUnknown"))
                     }
                 }.padding(.horizontal, 10).frame(height: 27)
             }

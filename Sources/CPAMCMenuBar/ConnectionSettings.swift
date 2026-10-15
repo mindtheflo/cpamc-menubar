@@ -26,7 +26,6 @@ struct ConnectionSettings: View {
             }.buttonStyle(.plain).accessibilityLabel(Copy.text("back"))
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    IconSettings(store: store).id(language)
                     general
                     proxy
                     connection
@@ -46,7 +45,8 @@ struct ConnectionSettings: View {
         .task { await controls.refresh(configuration: store.configuration) }.onAppear { endpoint = store.configuration.proxyURL; keyFile = store.configuration.managementKeyFile }
     }
     private var general: some View {
-        SettingsSection(Copy.text("general")) {
+        SettingsSection(Copy.text("general"), footer: Copy.text("paceLegend") + " " + Copy.text("forecastHelp")) {
+            IconSettings(store: store).id(language)
             SettingRow(Copy.text("launchAtLogin")) {
                 Toggle(Copy.text("launchAtLogin"), isOn: Binding(get: { controls.loginEnabled }, set: { value in
                     Task { await controls.setLogin(value, configuration: store.configuration) }

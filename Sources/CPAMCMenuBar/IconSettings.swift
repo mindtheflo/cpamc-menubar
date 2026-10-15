@@ -4,19 +4,15 @@ import QuotaCore
 struct IconSettings: View {
     @ObservedObject var store: QuotaStore
     var body: some View {
-        SettingsSection(Copy.text("iconSettings"), footer: Copy.text("forecastHelp")) {
-            SettingRow(Copy.text("iconAppearance"), help: Copy.text(store.iconPreferences.appearance == .color ? "paceLegend" : "monochromeLegend") + " " + Copy.text("forecastHelp")) {
-                Picker(Copy.text("iconAppearance"), selection: $store.iconPreferences.appearance) {
-                    Text(Copy.text("color")).tag(IconAppearance.color)
-                    Text(Copy.text("monochrome")).tag(IconAppearance.monochrome)
-                }.pickerStyle(.segmented).labelsHidden().fixedSize()
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 5) {
+                Text(Copy.text("iconShows"))
+                InfoPill(Copy.text(store.iconPreferences.content == .providers ? "providersHint" : "windowsHint"))
             }
-            SettingRow(Copy.text("iconShows"), help: Copy.text(store.iconPreferences.content == .providers ? "providersHint" : "windowsHint")) {
-                Picker(Copy.text("iconShows"), selection: $store.iconPreferences.content) {
-                    Text(Copy.text("iconProviders")).tag(IconContent.providers)
-                    Text(Copy.text("iconWindows")).tag(IconContent.windows)
-                }.pickerStyle(.segmented).labelsHidden().fixedSize()
-            }
+            Picker(Copy.text("iconShows"), selection: $store.iconPreferences.content) {
+                Text(Copy.text("iconProviders")).tag(IconContent.providers)
+                Text(Copy.text("iconWindows")).tag(IconContent.windows)
+            }.pickerStyle(.segmented).labelsHidden().fixedSize()
         }
     }
 }

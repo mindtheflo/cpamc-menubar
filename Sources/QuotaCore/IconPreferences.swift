@@ -1,10 +1,8 @@
 import Foundation
 
-public enum IconAppearance: String, Codable, CaseIterable, Sendable { case color, monochrome }
 public enum IconContent: String, Codable, CaseIterable, Sendable { case providers, windows }
 
 public struct IconPreferences: Codable, Equatable, Sendable {
-    public var appearance: IconAppearance = .color
     public var content: IconContent = .providers
     public init() {}
     public static let defaultsKey = "menuBarIconPreferences"
