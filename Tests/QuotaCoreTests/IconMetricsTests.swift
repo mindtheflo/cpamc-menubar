@@ -96,22 +96,55 @@ final class IconMetricsTests: XCTestCase {
         let untrained = IconMetrics.bars(snapshot: snapshot, preferences: .init(), at: now)
         XCTAssertEqual(untrained[1].tone, .unknown)
         let estimate = PaceForecast(pace: .under, gap: nil, horizon: now, shortageAt: nil,
-            pressureRange: 0.1...0.2, observedHours: 10, windowPaces: ["seven_day": .under], baselineDemand: [:], recentDemand: [:])
+            pressureRange: 0.1...0.2, observedHours: 10, recentObservedHours: 2, windowPaces: ["seven_day": .under], baselineDemand: [:], recentDemand: [:])
         let trained = IconMetrics.bars(snapshot: snapshot, preferences: .init(), at: now, forecasts: [.claude: estimate])
         XCTAssertEqual(trained[1].tone, .underPace)
         let partial = QuotaSnapshot(accounts: snapshot.accounts + [.init(id: "missing", provider: .claude, label: "missing")])
         XCTAssertEqual(IconMetrics.bars(snapshot: partial, preferences: .init(), at: now, forecasts: [.claude: estimate])[1].tone, .unknown)
     }
+    func testTentativeForecastUsesItsHueWithLowerSaturationButNeverColoursMissingData() {
+        let snapshot = QuotaSnapshot(accounts: [account("a", weekly: 50)])
+        var estimate = PaceForecast.unknown(.uncertainty, at: now)
+        estimate.prediction = .init(pace: .under, agreement: 0.4)
+        let tentative = IconMetrics.bars(snapshot: snapshot, preferences: .init(), at: now, forecasts: [.claude: estimate])[1]
+        XCTAssertEqual(tentative.tone, .underPace)
+        XCTAssertGreaterThan(tentative.saturation, 0)
+        XCTAssertLessThan(tentative.saturation, 1)
+        estimate.prediction = .init(pace: .under, agreement: 1)
+        let strong = IconMetrics.bars(snapshot: snapshot, preferences: .init(), at: now, forecasts: [.claude: estimate])[1]
+        XCTAssertEqual(strong.saturation, 1)
+        XCTAssertEqual(strong.leftPercent, tentative.leftPercent)
+        let unread = SubscriptionAccount(id: "missing", provider: .claude, label: "missing")
+        let partial = IconMetrics.bars(snapshot: .init(accounts: snapshot.accounts + [unread]), preferences: .init(), at: now, forecasts: [.claude: estimate])[1]
+        XCTAssertEqual(partial.tone, .unknown)
+        XCTAssertEqual(partial.saturation, 0)
+        let exhausted = IconMetrics.bars(snapshot: .init(accounts: [account("empty", weekly: 0)]), preferences: .init(), at: now, forecasts: [.claude: estimate])[1]
+        XCTAssertEqual(exhausted.tone, .out)
+        XCTAssertEqual(exhausted.saturation, 1)
+    }
     func testWindowColoursKeepIndependentProviderBottlenecks() {
         let snapshot = QuotaSnapshot(accounts: [account("a", session: 40, weekly: 50), account("b", provider: .codex, session: 80, weekly: 90)])
         func estimate(_ pace: Pace) -> PaceForecast {
             .init(pace: pace, gap: nil, horizon: now, shortageAt: nil, pressureRange: 0.1...0.2,
-                  observedHours: 10, windowPaces: ["five_hour": pace, "seven_day": .under], baselineDemand: [:], recentDemand: [:])
+                  observedHours: 10, recentObservedHours: 2, windowPaces: ["five_hour": pace, "seven_day": .under], baselineDemand: [:], recentDemand: [:])
         }
         var prefs = IconPreferences(); prefs.content = .windows
         let bars = IconMetrics.bars(snapshot: snapshot, preferences: prefs, at: now, forecasts: [.claude: estimate(.under), .codex: estimate(.over)])
         XCTAssertEqual(bars.map(\.tone), [.overPace, .underPace])
         XCTAssertEqual(IconMetrics.bars(snapshot: snapshot, preferences: prefs, at: now, forecasts: [.claude: estimate(.under)]).map(\.tone), [.unknown, .unknown])
+    }
+    func testWindowPredictionsKeepTheWeakestAgreementAndProviderBottleneck() {
+        let snapshot = QuotaSnapshot(accounts: [account("a", weekly: 50), account("b", provider: .codex, weekly: 90)])
+        var claude = PaceForecast.unknown(.uncertainty, at: now)
+        claude.windowPredictions = ["seven_day": .init(pace: .under, agreement: 0.8)]
+        var codex = PaceForecast.unknown(.uncertainty, at: now)
+        codex.windowPredictions = ["seven_day": .init(pace: .over, agreement: 0.4)]
+        var prefs = IconPreferences(); prefs.content = .windows
+        let bar = IconMetrics.bars(snapshot: snapshot, preferences: prefs, at: now, forecasts: [.claude: claude, .codex: codex])[1]
+        XCTAssertEqual(bar.tone, .overPace)
+        XCTAssertEqual(bar.agreement, 0.4)
+        XCTAssertLessThan(bar.saturation, 1)
+        XCTAssertEqual(IconMetrics.bars(snapshot: snapshot, preferences: prefs, at: now, forecasts: [.claude: claude])[1].tone, .unknown)
     }
     func testIconPreferencesPersistAndRemovedOptionsDoNotResetContent() {
         let suite = "cpamc-icon-test-" + UUID().uuidString
