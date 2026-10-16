@@ -69,8 +69,18 @@ public enum ForecastGap: String, Sendable {
     case history, readings, capacity, activity, uncertainty
 }
 
+/// Sensitivity-scenario agreement, not a calibrated probability of future correctness.
+public struct PacePrediction: Sendable, Equatable {
+    public let pace: Pace
+    public let agreement: Double
+    public init(pace: Pace, agreement: Double) {
+        self.pace = pace
+        self.agreement = agreement.isFinite ? min(1, max(0, agreement)) : 0
+    }
+}
+
 public struct PaceForecast: Sendable {
-    /// Nil means neutral, never a quota-level fallback colour.
+    /// Consensus across the demand band. Nil can still have a tentative central prediction.
     public let pace: Pace?
     public let gap: ForecastGap?
     public let horizon: Date
@@ -83,6 +93,12 @@ public struct PaceForecast: Sendable {
     public let windowPaces: [String: Pace]
     public let baselineDemand: [String: Double]
     public let recentDemand: [String: Double]
+    public internal(set) var prediction: PacePrediction? = nil
+    public internal(set) var windowPredictions: [String: PacePrediction] = [:]
+    public var displayPrediction: PacePrediction? { prediction ?? pace.map { .init(pace: $0, agreement: 1) } }
+    public func displayPrediction(for kind: String) -> PacePrediction? {
+        windowPredictions[kind] ?? windowPaces[kind].map { .init(pace: $0, agreement: 1) }
+    }
 
     static func unknown(_ gap: ForecastGap, at now: Date, hours: Double = 0, recentHours: Double = 0) -> Self {
         .init(pace: nil, gap: gap, horizon: now, shortageAt: nil, pressureRange: nil, observedHours: hours, recentObservedHours: recentHours, windowPaces: [:], baselineDemand: [:], recentDemand: [:])
@@ -110,7 +126,7 @@ public enum PaceForecaster {
         let calendar: Calendar
         let now: Date
 
-        func rates(at date: Date, upper: Bool) -> [String: Double] {
+        func rates(at date: Date, scenario: Double) -> [String: Double] {
             let future = date.timeIntervalSince(now) / 3600
             let burstWeight = exp(-log(2) * future / 6)
             let weekend = calendar.isDateInWeekend(date)
@@ -132,9 +148,10 @@ public enum PaceForecaster {
                 let margin = max(baseline * 0.25, spread[kind] ?? 0) * (1 + 0.1 * sqrt(future / 24))
                 if weekend != currentWeekend && exposure < 2 {
                     // No evidence for that day type: bracket silence AND continued work; do not assume weekends off.
-                    result[kind] = upper ? max(center + margin, recent + margin) : 0
+                    result[kind] = max(center + margin, recent + margin) * scenario
                 } else {
-                    result[kind] = upper ? center + margin : max(0, center - margin)
+                    let low = max(0, center - margin)
+                    result[kind] = low + (center + margin - low) * scenario
                 }
             }
         }
@@ -238,9 +255,14 @@ public enum PaceForecaster {
             $0.resetsAt ?? now.addingTimeInterval(7 * 86400)
         }.max()
         let horizon = max(now.addingTimeInterval(24 * hour), lastWeekly ?? now)
-        let low = simulate(accounts: accounts, demand: demand, now: now, until: horizon, upper: false, balanced: false)
-        let high = simulate(accounts: accounts, demand: demand, now: now, until: horizon, upper: true, balanced: false)
-        let fair = simulate(accounts: accounts, demand: demand, now: now, until: horizon, upper: true, balanced: true)
+        // Evaluate the same sensitivity envelope at five equally spaced demand levels. Check
+        // both routing policies; a greedy failure without a deficit certificate stays unclassified.
+        let scenarios = (0...4).map { step -> (Simulation, Simulation) in
+            let level = Double(step) / 4
+            return (simulate(accounts: accounts, demand: demand, now: now, until: horizon, scenario: level, balanced: false),
+                    simulate(accounts: accounts, demand: demand, now: now, until: horizon, scenario: level, balanced: true))
+        }
+        let low = scenarios[0].0, high = scenarios[4].0, fair = scenarios[4].1
         // Orange requires a mathematical pooled-capacity deficit even under LOW demand. A routing heuristic
         // failing is NOT proof of unavoidable exhaustion. Blue/green require both feasible routing policies.
         let pace: Pace?
@@ -258,9 +280,26 @@ public enum PaceForecaster {
                 else if (low.pressures[kind] ?? 0) >= 0.5 { windowPaces[kind] = .steady }
             }
         }
-        return .init(pace: pace, gap: pace == nil ? .uncertainty : nil, horizon: horizon,
+        func classify(_ pair: (Simulation, Simulation), kind: String? = nil) -> Pace? {
+            if let kind {
+                if pair.0.deficits[kind] != nil { return .over }
+            } else if pair.0.unavoidableShortage != nil { return .over }
+            guard pair.0.shortage == nil, pair.1.shortage == nil else { return nil }
+            let pressure = kind.map { max(pair.0.pressures[$0] ?? 0, pair.1.pressures[$0] ?? 0) }
+                ?? max(pair.0.pressure, pair.1.pressure)
+            return pressure < 0.5 ? .under : .steady
+        }
+        func prediction(kind: String? = nil) -> PacePrediction? {
+            guard let center = classify(scenarios[2], kind: kind) else { return nil }
+            let matches = scenarios.filter { classify($0, kind: kind) == center }.count
+            return .init(pace: center, agreement: Double(matches) / Double(scenarios.count))
+        }
+        var result = PaceForecast(pace: pace, gap: pace == nil ? .uncertainty : nil, horizon: horizon,
                      shortageAt: pace == .over ? low.unavoidableShortage : nil,
                      pressureRange: min(low.pressure, high.pressure)...max(low.pressure, high.pressure, fair.pressure), observedHours: hours, recentObservedHours: recentHours, windowPaces: windowPaces, baselineDemand: base, recentDemand: fast)
+        result.prediction = prediction()
+        result.windowPredictions = kinds.reduce(into: [:]) { values, kind in values[kind] = prediction(kind: kind) }
+        return result
     }
 
     private static func comparableAge(from start: Date, to end: Date, calendar: Calendar) -> Double {
@@ -346,7 +385,7 @@ public enum PaceForecaster {
     }
 
     private static func simulate(accounts: [SubscriptionAccount], demand: Demand, now: Date, until end: Date,
-                                 upper: Bool, balanced: Bool) -> Simulation {
+                                 scenario: Double, balanced: Bool) -> Simulation {
         var supply = accounts.map { account in
             Supply(limits: Dictionary(uniqueKeysWithValues: account.windows.filter { !$0.modelScoped }.map {
                 ($0.id, Limit(left: $0.leftPercent ?? 0, reset: $0.resetsAt, duration: $0.duration ?? 0))
@@ -387,7 +426,7 @@ public enum PaceForecaster {
             let nextHour = demand.calendar.dateInterval(of: .hour, for: time)?.end ?? time.addingTimeInterval(hour)
             let next = min(end, time.addingTimeInterval(300), events.min() ?? end, nextGrant, nextHour)
             let dt = next.timeIntervalSince(time) / hour
-            let rates = demand.rates(at: time, upper: upper)
+            let rates = demand.rates(at: time, scenario: scenario)
             let ready = supply.indices.filter { supply[$0].cooldown.map { $0 <= time } ?? true }
             // Each account can accept only the workload allowed by BOTH its session and its weekly balance.
             func room(_ i: Int) -> Double {

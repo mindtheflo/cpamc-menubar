@@ -34,7 +34,9 @@ final class QuotaStore: ObservableObject {
                 if metric.leftPercent != nil { value = "≥" + value }
                 value += " (" + Copy.text(metric.missing == 1 ? "notReportedOne" : "notReportedMany", "\(metric.missing)") + ")"
             }
-            let pace = metric.tone == .out ? nil : (metric.tone == .unknown ? nil : metric.pace).map { ", " + Copy.pace($0) } ?? ", " + Copy.text("forecastUnknown")
+            let pace = metric.tone == .out ? nil : (metric.tone == .unknown ? nil : metric.pace).map {
+                ", " + Copy.pace($0) + " (" + Copy.text(metric.agreement < 0.6 ? "forecastTentative" : metric.agreement < 1 ? "forecastModerate" : "forecastStrong") + ")"
+            } ?? ", " + Copy.text("forecastUnknown")
             let label = Copy.text(metric.label) + (iconPreferences.content == .providers ? " (" + Copy.text("weekly") + ")" : "")
             return label + ": " + value + (pace ?? "")
         }.joined(separator: " · ")

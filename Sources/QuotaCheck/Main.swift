@@ -12,6 +12,11 @@ enum QuotaCheck {
                 let estimate = PaceForecaster.forecast(snapshot: snapshot, history: history, provider: provider, at: snapshot.fetchedAt)
                 return ["provider": .string(provider.rawValue),
                         "pace": estimate.pace.map { .string($0.rawValue) } ?? .null,
+                        "prediction": estimate.displayPrediction.map { .string($0.pace.rawValue) } ?? .null,
+                        "scenario_agreement": estimate.displayPrediction.map { .number($0.agreement) } ?? .null,
+                        "window_predictions": .object(estimate.windowPredictions.mapValues { .object([
+                            "pace": .string($0.pace.rawValue), "scenario_agreement": .number($0.agreement)
+                        ]) }),
                         "neutral_reason": estimate.gap.map { .string($0.rawValue) } ?? .null,
                         "observed_hours": .number(estimate.observedHours),
                         "recent_observed_hours": .number(estimate.recentObservedHours),

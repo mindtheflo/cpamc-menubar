@@ -20,6 +20,17 @@ extension MeterTone {
     }
 }
 
+extension IconMetric {
+    var nativeColor: NSColor {
+        let original = tone.nativeColor
+        guard tone != .unknown, tone != .out,
+              let rgb = original.usingColorSpace(.deviceRGB) else { return original }
+        var hue: CGFloat = 0, chroma: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
+        rgb.getHue(&hue, saturation: &chroma, brightness: &brightness, alpha: &alpha)
+        return NSColor(deviceHue: hue, saturation: chroma * saturation, brightness: brightness, alpha: alpha)
+    }
+}
+
 struct LevelCapsule: View {
     let left: Double?
     let tone: MeterTone
@@ -44,7 +55,7 @@ enum MenuIcon {
                     ? NSRect(x: 4.5 + CGFloat(index) * 9, y: 2, width: 6, height: 18)
                     : NSRect(x: 3, y: 12.5 - CGFloat(index) * 9, width: 18, height: 6)
                 let capsule = NSBezierPath(roundedRect: rect, xRadius: 3, yRadius: 3)
-                let ink = metric.tone.nativeColor
+                let ink = metric.nativeColor
                 // Empty and unknown retain an outline; the tooltip distinguishes them.
                 ink.setStroke()
                 capsule.lineWidth = 1

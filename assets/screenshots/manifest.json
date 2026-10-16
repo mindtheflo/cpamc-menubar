@@ -1,14 +1,14 @@
 {
   "schema": 1,
-  "source_sha256": "0563d07441013f4a658a03371311f839966136b188ad3f50b1797eee2251dfcf",
+  "source_sha256": "0f5ac0b319465616d2283df7b35d95b783c46e8b9e001b1068c09f1604db980d",
   "images": {
     "overview.png": {
-      "sha256": "0bac4aa1cfcae43e7c008d64db89d0fe9732a0cbd7fd69a373e3af8c5e3d535f",
+      "sha256": "6c35b2dec6c9145b463f9409e531d2bfaf43f883373d7bb633db0d25fe5932e1",
       "width": 720,
       "height": 834
     },
     "account.png": {
-      "sha256": "a641c45095d57f8c062cd093a2023b181563e5b9ada099ded810325806233e5b",
+      "sha256": "bd7d0ab3b04b5ee7aacb29d9c6329a59f828255d7d5cc55df25cdf779a0838da",
       "width": 720,
       "height": 600
     },

@@ -58,6 +58,7 @@ final class PaceTests: XCTestCase {
         let f = fixture([Spec()], hours: 0)
         XCTAssertNil(forecast(f).pace)
         XCTAssertEqual(forecast(f).gap, .history)
+        XCTAssertNil(forecast(f).displayPrediction)
         XCTAssertEqual(f.0.accounts[0].tone(at: now), .unknown)
         XCTAssertEqual(f.0.accounts[0].windows[0].tone(at: now), .unknown)
         XCTAssertEqual(MeterTone(left: 5, pace: nil), .unknown)
@@ -67,23 +68,29 @@ final class PaceTests: XCTestCase {
         XCTAssertEqual(result.pace, .under)
         XCTAssertGreaterThan(result.observedHours, 9)
         XCTAssertLessThan(result.pressureRange!.upperBound, 0.5)
+        XCTAssertEqual(result.prediction, .init(pace: .under, agreement: 1))
     }
     func testModerateDemandIsGreenWhenWholeBandIsAboveHalfButFeasible() {
         let result = forecast(fixture([Spec(weeklyUsed: 40, weeklyRate: 1.8, weeklyReset: 24)]))
         XCTAssertEqual(result.pace, .steady)
         XCTAssertGreaterThanOrEqual(result.pressureRange!.lowerBound, 0.5)
         XCTAssertLessThan(result.pressureRange!.upperBound, 1)
+        XCTAssertEqual(result.prediction, .init(pace: .steady, agreement: 1))
     }
     func testShortageEvenAtLowDemandIsOrange() {
         let result = forecast(fixture([Spec(weeklyUsed: 90, weeklyRate: 3, weeklyReset: 48)]))
         XCTAssertEqual(result.pace, .over)
         XCTAssertNotNil(result.shortageAt)
+        XCTAssertEqual(result.prediction, .init(pace: .over, agreement: 1))
         XCTAssertLessThan(result.shortageAt!, now.addingTimeInterval(48 * hour))
     }
     func testBoundaryCrossingAbstainsInsteadOfFallingBackToLevel() {
         let result = forecast(fixture([Spec(weeklyUsed: 40, weeklyRate: 0.6, weeklyReset: 48)]))
         XCTAssertNil(result.pace)
         XCTAssertEqual(result.gap, .uncertainty)
+        XCTAssertNotNil(result.prediction)
+        XCTAssertLessThan(result.prediction?.agreement ?? 1, 1)
+        XCTAssertGreaterThan(result.prediction?.agreement ?? 0, 0)
     }
     func testStaggeredWeeklyRenewalRescuesThePool() {
         let early = Spec(id: "early", weeklyUsed: 98, weeklyRate: 1, weeklyReset: 1)
@@ -108,6 +115,7 @@ final class PaceTests: XCTestCase {
         f.0.accounts[0].windows[0].usedPercent = 100
         f.0.accounts[1].windows[1].usedPercent = 100
         XCTAssertNil(forecast(f).pace) // A marginal pooled average would incorrectly promise capacity.
+        XCTAssertNil(forecast(f).prediction) // A failed routing heuristic is not proof of a shortage.
     }
     func testDisabledAccountsDoNotAddCapacityOrDemand() {
         let base = Spec(weeklyUsed: 90, weeklyRate: 3, weeklyReset: 48)
