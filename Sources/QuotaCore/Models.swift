@@ -9,17 +9,17 @@ public enum MeterTone: String, Codable, Sendable {
     case ok, low, out, unknown
     /// On pace to run out before the renewal.
     case overPace
-    /// Well under pace: less than half used by the renewal.
+    /// Upper-bound future demand needs less than half the pooled supply envelope.
     case underPace
 
-    /// Used up; otherwise the pace, when it can be told; otherwise whether little is left.
+    /// Prediction colours require a global forecast. Nil is neutral; red is an observed fact.
     public init(left: Double, pace: Pace?) {
         if left <= 0 { self = .out; return }
         switch pace {
         case .over: self = .overPace
         case .under: self = .underPace
         case .steady: self = .ok
-        case nil: self = left <= 10 ? .low : .ok
+        case nil: self = .unknown
         }
     }
 }
@@ -46,7 +46,7 @@ public struct QuotaWindow: Identifiable, Codable, Sendable, Equatable {
     }
     public func tone(at now: Date) -> MeterTone {
         guard isFresh(at: now), let left = leftPercent else { return .unknown }
-        return MeterTone(left: left, pace: pace(at: now)?.pace)
+        return left <= 0 ? .out : .unknown
     }
 }
 
@@ -91,11 +91,10 @@ public struct SubscriptionAccount: Identifiable, Codable, Sendable, Equatable {
               shared.allSatisfy({ $0.isFresh(at: now) && $0.leftPercent != nil }) else { return nil }
         return shared.compactMap(\.leftPercent).min()
     }
-    /// The pace of the shared allowances together.
-    public func pace(at now: Date) -> Pace? { Pace.combined(windows.filter { !$0.modelScoped }, at: now) }
+    /// Individual licences show observed levels only, with no inferred pacing.
     public func tone(at now: Date) -> MeterTone {
         guard let left = freshLeft(at: now) else { return .unknown }
-        return MeterTone(left: left, pace: pace(at: now))
+        return left <= 0 ? .out : .unknown
     }
     public func isReady(at now: Date) -> Bool {
         guard !disabled, !unavailable, let left = freshLeft(at: now), left > 0 else { return false }

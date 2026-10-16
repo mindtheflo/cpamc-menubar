@@ -3,7 +3,7 @@ set -euo pipefail
 task_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$task_root"
 task_sign_identity="${CODESIGN_IDENTITY:--}"
-# The app, its zip and the plugin go to dist/ unless another folder is given.
+# The app and its zip go to dist/ unless another folder is given.
 # Juice Bar's updater relies on this: `build.sh <folder>` makes `<folder>/Juice Bar.app`,
 # signed with CODESIGN_IDENTITY. Keep that contract when changing this script.
 task_out="${1:-$task_root/dist}"
@@ -56,5 +56,7 @@ codesign --force --deep --options runtime --timestamp --sign "$task_sign_identit
 task_zip="$task_out/Juice Bar.app.zip"
 rm -f "$task_zip"
 ditto -c -k --norsrc --keepParent "$task_app" "$task_zip"
-bash "$task_root/scripts/build-plugin.sh" "$task_out/plugin"
+# Remove only our retired build artifact, never a proxy's plugin installation or configuration.
+rm -f "$task_out/plugin/cpamc-menubar.dylib"
+rmdir "$task_out/plugin" 2>/dev/null || true
 printf 'Built: %s\nArchive: %s\n' "$task_app" "$task_zip"

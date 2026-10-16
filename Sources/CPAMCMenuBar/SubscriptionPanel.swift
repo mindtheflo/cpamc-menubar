@@ -81,7 +81,9 @@ struct SubscriptionPanel: View {
     @AppStorage("hideDisabledClaude") private var hideDisabledClaude = false
     @State private var selected: String?
     @State private var settings = false
-    /// Whether the details show renewals as a date and time rather than the time left. A click on one switches them all.
+    @State private var hoveredAccount: String?
+    @State private var hoveredLimit: String?
+    /// Weekly renewals can switch to dates; five-hour sessions always keep a countdown.
     @State private var renewalDates = false
 
     var body: some View {
@@ -93,7 +95,17 @@ struct SubscriptionPanel: View {
             } else { overview }
         }
         .font(.system(size: 13)).frame(width: 350).padding(5)
-        .onAppear { store.start() }
+        .onAppear {
+            store.start()
+            if store.demo, let index = CommandLine.arguments.firstIndex(of: "--demo-page"),
+               CommandLine.arguments.indices.contains(index + 1) {
+                switch CommandLine.arguments[index + 1] {
+                case "account": selected = "demo-claude-4"
+                case "settings": settings = true
+                default: break
+                }
+            }
+        }
         .onChange(of: language) { _ in }
     }
     private var separator: some View { Divider().padding(.horizontal, 10).padding(.vertical, 5) }
@@ -138,65 +150,75 @@ struct SubscriptionPanel: View {
             footer
         }
     }
+    private func accountPercentages(_ account: SubscriptionAccount) -> String {
+        let shared = account.windows.filter { !$0.modelScoped }
+        func percent(_ window: QuotaWindow) -> String {
+            let current = store.error == nil && account.readError == nil && window.isFresh(at: store.now)
+            let label = window.id == "five_hour" ? "session" : window.id == "seven_day" ? "weekly" : window.id
+            let value = window.leftPercent.map { "\(Int($0.rounded()))%" } ?? Copy.text("noReading")
+            return Copy.text(label) + " " + (current ? "" : Copy.text("lastKnown") + " · ") + value
+        }
+        return shared.isEmpty ? Copy.text("noReading") : shared.sorted { $0.id < $1.id }.map(percent).joined(separator: " · ")
+    }
+
     private func accountRow(_ account: SubscriptionAccount) -> some View {
         let window = account.tightestWindow
         let left = account.freshLeft(at: store.now)
         let tone = store.error == nil ? account.tone(at: store.now) : .unknown
-        // The bars show the level, in grey for a disabled account; the words are for VoiceOver.
-        let level = left == nil && window?.leftPercent != nil
-            ? Copy.text("lastKnown") + " · " + Copy.percent(window?.leftPercent) : Copy.percent(left)
-        let renewal = Copy.duration(account.cooldownUntil.flatMap { $0 > store.now ? $0 : nil } ?? window?.resetsAt, now: store.now)
-        let pace = tone == .unknown || tone == .out ? nil : account.pace(at: store.now).map { ", " + Copy.pace($0) }
-        return Button { store.accountUpdateError = nil; selected = account.id } label: {
-            HStack(spacing: 10) {
-                if account.provider == .claude {
-                    HStack(spacing: 3) {
-                        quotaBar(account.claudeRowWindows[0], account: account, label: Copy.text("session"))
-                        quotaBar(account.claudeRowWindows[1], account: account, label: Copy.text("weekly"))
+        let reset = account.cooldownUntil.flatMap { $0 > store.now ? $0 : nil } ?? window?.resetsAt
+        return HStack(spacing: 8) {
+            Button { store.accountUpdateError = nil; selected = account.id } label: {
+                HStack(spacing: 10) {
+                    if account.provider == .claude {
+                        HStack(spacing: 3) {
+                            quotaBar(account.claudeRowWindows[0], account: account, label: Copy.text("session"))
+                            quotaBar(account.claudeRowWindows[1], account: account, label: Copy.text("weekly"))
+                        }
+                    } else {
+                        LevelCapsule(left: store.error == nil ? left : nil, tone: account.disabled ? .unknown : tone)
                     }
-                } else {
-                    LevelCapsule(left: tone == .unknown ? nil : left, tone: account.disabled ? .unknown : tone)
-                }
-                Text(name(account))
-                    .lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
-                if let renewal { Text(renewal).monospacedDigit().foregroundStyle(.secondary) }
+                    Text(hoveredAccount == account.id ? accountPercentages(account) : name(account))
+                        .font(.system(size: hoveredAccount == account.id ? 11 : 13))
+                        .lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
+                }.frame(maxWidth: .infinity, alignment: .leading).frame(height: 25)
+                    .contentShape(Rectangle()).hoverHighlight()
             }
-            .padding(.horizontal, 10).frame(height: 25).contentShape(Rectangle())
-            // A disabled account is dimmed; the words are for VoiceOver.
-            .foregroundStyle(account.disabled ? .secondary : .primary)
-            .hoverHighlight()
+            .buttonStyle(.plain)
+            .onHover { hoveredAccount = $0 ? account.id : nil }
+            .help(account.readError ?? Copy.text("percentageHint"))
+            .accessibilityLabel(name(account) + (account.disabled ? ", " + Copy.text("disabled") : ""))
+            .accessibilityValue(accountPercentages(account))
+            .accessibilityHint(Copy.text("accountDetails"))
+            if let reset, reset > store.now { renewal(reset, relativeOnly: window?.id == "five_hour") }
         }
-        .buttonStyle(.plain)
-        .help(account.readError ?? "")
-        .accessibilityLabel("\(name(account))\(account.disabled ? ", " + Copy.text("disabled") : ""), \(level)\(pace ?? ""), \(renewal ?? "")")
-        .accessibilityValue(account.provider == .claude ? Copy.text("session") + ": " + Copy.percent(account.claudeRowWindows[0]?.leftPercent) + ", " + Copy.text("weekly") + ": " + Copy.percent(account.claudeRowWindows[1]?.leftPercent) : "")
+        .padding(.horizontal, 10).frame(height: 25)
+        .foregroundStyle(account.disabled ? .secondary : .primary)
     }
     private func quotaBar(_ window: QuotaWindow?, account: SubscriptionAccount, label: String) -> some View {
         let current = account.readError == nil && store.error == nil && window?.isFresh(at: store.now) == true
         let tone = current ? window?.tone(at: store.now) ?? .unknown : .unknown
-        let pace = tone == .unknown || tone == .out ? nil : window?.pace(at: store.now).map { ", " + Copy.pace($0.pace) }
         return LevelCapsule(left: current ? window?.leftPercent : nil, tone: account.disabled ? .unknown : tone)
-            .help(label + ": " + Copy.percent(window?.leftPercent) + (pace ?? ""))
+            .help(label + ": " + Copy.percent(window?.leftPercent))
     }
-    /// When an allowance renews: the time left, or the date and time once clicked.
-    private func renewal(_ reset: Date) -> some View {
+    /// Session renewals always show elapsed-relative time; longer windows can switch to a date.
+    private func renewal(_ reset: Date, relativeOnly: Bool = false) -> some View {
         let relative = Copy.duration(reset, now: store.now) ?? ""
-        let text = renewalDates ? Copy.moment(reset, now: store.now) : relative
-        return Button { renewalDates.toggle() } label: {
-            Text(text).monospacedDigit().lineLimit(1).padding(.leading, 8).contentShape(Rectangle())
+        let absolute = renewalDates && !relativeOnly
+        let text = absolute ? Copy.text("on") + " " + Copy.moment(reset, now: store.now)
+                            : Copy.text("in") + " " + relative
+        let label = Text(text).font(.system(size: 11)).monospacedDigit().lineLimit(1)
+            .foregroundStyle(.secondary).padding(.vertical, 4)
+        return Group {
+            if relativeOnly { label }
+            else {
+                Button { renewalDates.toggle() } label: {
+                    label.contentShape(Rectangle()).hoverHighlight()
+                }.buttonStyle(.plain)
+            }
         }
-        .buttonStyle(.plain).layoutPriority(1)
-        .accessibilityLabel(renewalDates ? Copy.text("renews") + " " + text : Copy.text("renewsIn", relative))
-    }
-    /// Where the window's pace leads by its renewal.
-    private func paceLine(_ estimate: PaceEstimate) -> String? {
-        let projected = estimate.projectedUse
-        let share = "\(projected < 10 ? Int(projected.rounded()) : Int((projected / 5).rounded()) * 5)%"
-        switch estimate.pace {
-        case .over: return Copy.duration(estimate.runsOutAt, now: store.now).map { Copy.text("paceOverLine", $0) }
-        case .steady: return Copy.text("paceSteadyLine", share)
-        case .under: return Copy.text("paceUnderLine", share)
-        }
+        .layoutPriority(1)
+        .help((relativeOnly ? "" : Copy.text("timeHint") + " ") + Copy.text("on") + " " + Copy.timestamp(reset, now: store.now, includeDate: true))
+        .accessibilityLabel(absolute ? Copy.text("renews") + " " + text : Copy.text("renewsIn", relative))
     }
     private func detail(_ account: SubscriptionAccount) -> some View {
         VStack(spacing: 0) {
@@ -219,7 +241,6 @@ struct SubscriptionPanel: View {
                     .disabled(store.busy || store.accountUpdating != nil)
                 if store.accountUpdating == account.id { ProgressView().controlSize(.mini).accessibilityLabel(Copy.text("accountUpdating")) }
             }.padding(.horizontal, 10).padding(.vertical, 4)
-            note(Copy.text("accountToggleHint"))
             if let updateError = store.accountUpdateError {
                 Text(updateError).font(.system(size: 11)).foregroundStyle(.red)
                     .padding(.horizontal, 10).padding(.vertical, 4)
@@ -228,25 +249,24 @@ struct SubscriptionPanel: View {
             ForEach(account.windows) { window in
                 let fresh = window.isFresh(at: store.now) && account.readError == nil && store.error == nil
                 let tone = fresh ? window.tone(at: store.now) : .unknown
-                HStack(alignment: .top, spacing: 10) {
-                    LevelCapsule(left: fresh ? window.leftPercent : nil, tone: tone).padding(.top, 2)
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack {
-                            Text(Copy.text(window.id)).lineLimit(1)
-                            Spacer()
-                            if let reset = window.resetsAt, reset > store.now { renewal(reset) }
-                        }
-                        Text((fresh ? "" : Copy.text("lastKnown") + " · ") + Copy.percent(window.leftPercent))
-                            .font(.system(size: 11))
-                            .foregroundStyle([.out, .low, .overPace].contains(tone) ? tone.color : .secondary)
-                        if let reset = window.resetsAt, reset <= store.now {
-                            Text(Copy.text("awaiting")).font(.system(size: 11)).foregroundStyle(.secondary)
-                        }
-                        if fresh, tone != .out, let line = window.pace(at: store.now).flatMap(paceLine) {
-                            Text(line).font(.system(size: 11)).foregroundStyle(.secondary)
-                        }
+                let percentage = window.leftPercent.map { "\(Int($0.rounded()))\(Copy.text("left"))" } ?? Copy.text("noReading")
+                let value = (fresh ? "" : Copy.text("lastKnown") + " · ") + percentage
+                HStack(spacing: 10) {
+                    LevelCapsule(left: fresh ? window.leftPercent : nil, tone: tone)
+                    Text(hoveredLimit == window.id ? value : Copy.text(window.id))
+                        .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle()).onHover { hoveredLimit = $0 ? window.id : nil }
+                        .help(Copy.text(window.id) + ": " + value)
+                        .accessibilityLabel(Copy.text(window.id)).accessibilityValue(value)
+                    if let reset = window.resetsAt {
+                        if reset > store.now { renewal(reset, relativeOnly: window.id == "five_hour") }
+                        else { Text(Copy.text("awaiting")).font(.system(size: 11)).foregroundStyle(.secondary) }
+                    } else if window.id == "five_hour" {
+                        Text(Copy.text(fresh && window.usedPercent == 0 ? "sessionIdle" : "renewalUnknown"))
+                            .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                            .help(Copy.text(fresh && window.usedPercent == 0 ? "sessionIdleHint" : "renewalUnknown"))
                     }
-                }.padding(.horizontal, 10).padding(.vertical, 6)
+                }.padding(.horizontal, 10).frame(height: 27)
             }
             if let cooldown = account.cooldownUntil, cooldown > store.now {
                 note(Copy.text("cooldown") + " " + Copy.timestamp(cooldown, now: store.now, includeDate: true))
@@ -256,7 +276,6 @@ struct SubscriptionPanel: View {
             if account.unlimitedCredits { note(Copy.text("credits") + ": " + Copy.text("unlimited")) }
             else if let credits = account.paidCredits { note(Copy.text("credits") + ": " + credits.formatted(.number.precision(.fractionLength(0...2)))) }
             if let grants = account.resetGrantsLeft, grants > 0 { note(Copy.text("resetGrant") + ": \(grants)") }
-            if let checked = account.checkedAt { note(Copy.text("lastChecked") + " " + Copy.timestamp(checked, now: store.now)) }
             footer
         }
     }
@@ -267,8 +286,9 @@ struct SubscriptionPanel: View {
     private var footer: some View {
         VStack(spacing: 0) {
             separator
-            MenuRow(title: store.busy ? Copy.text("refreshing") : store.snapshot.map {
-                Copy.text("updated") + " " + Copy.timestamp($0.fetchedAt, now: store.now)
+            MenuRow(title: store.busy ? Copy.text("refreshing") : store.snapshot.map { snapshot in
+                let checked = selected.flatMap { id in snapshot.accounts.first { $0.id == id }?.checkedAt } ?? snapshot.fetchedAt
+                return Copy.text("updated") + " " + Copy.timestamp(checked, now: store.now)
             } ?? Copy.text("refresh"), actionTitle: Copy.text("refresh"), shortcut: "⌘R", disabled: store.busy) {
                 Task { await store.refresh(force: true) }
             }.keyboardShortcut("r", modifiers: .command)

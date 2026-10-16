@@ -2,107 +2,250 @@ import XCTest
 @testable import QuotaCore
 
 final class PaceTests: XCTestCase {
-    let now = Date(timeIntervalSince1970: 1_800_000_000)
-    let hour: TimeInterval = 3600, day: TimeInterval = 86400
-    func window(_ id: String = "seven_day", used: Double?, renewsIn: TimeInterval?, scoped: Bool = false) -> QuotaWindow {
-        .init(id: id, usedPercent: used, resetsAt: renewsIn.map { now.addingTimeInterval($0) }, observedAt: now, modelScoped: scoped)
+    let hour = 3600.0
+    var calendar: Calendar { var c = Calendar(identifier: .gregorian); c.timeZone = TimeZone(secondsFromGMT: 0)!; return c }
+    var now: Date { ISO8601DateFormatter().date(from: "2026-10-15T12:00:00Z")! }
+
+    struct Spec {
+        var id = "a"
+        var provider = Provider.claude
+        var plan = "Max"
+        var weeklyUsed = 20.0
+        var weeklyRate = 0.3
+        var weeklyReset = 48.0
+        var sessionRate: Double? = nil
+        var sessionReset = 1.0
+        var disabled = false
     }
-    func account(_ id: String, provider: Provider = .claude, _ windows: [QuotaWindow]) -> SubscriptionAccount {
-        .init(id: id, provider: provider, label: id, windows: windows, checkedAt: now)
+    func fixture(_ specs: [Spec], hours: Double = 10, ending: Date? = nil,
+                 multiplier: (Date) -> Double = { _ in 1 }) -> (QuotaSnapshot, PaceHistory) {
+        let end = ending ?? now
+        var history = PaceHistory(), latest = QuotaSnapshot(accounts: [], fetchedAt: end)
+        for step in 0...Int(hours * 12) {
+            let time = end.addingTimeInterval(-hours * hour + Double(step) * 300)
+            let ago = end.timeIntervalSince(time) / hour
+            let accounts = specs.map { spec -> SubscriptionAccount in
+                let reset = end.addingTimeInterval(spec.weeklyReset * hour)
+                var windows = [QuotaWindow(id: "seven_day", usedPercent: max(0, spec.weeklyUsed - spec.weeklyRate * ago),
+                                           resetsAt: reset, observedAt: time)]
+                if let rate = spec.sessionRate {
+                    var reset = end.addingTimeInterval(spec.sessionReset * hour)
+                    while reset.timeIntervalSince(time) > 5 * hour { reset = reset.addingTimeInterval(-5 * hour) }
+                    let elapsed = max(0, 5 - reset.timeIntervalSince(time) / hour)
+                    windows.append(.init(id: "five_hour", usedPercent: min(100, elapsed * rate * multiplier(time)), resetsAt: reset, observedAt: time))
+                }
+                return .init(id: spec.id, provider: spec.provider, label: "private-name", plan: spec.plan,
+                             disabled: spec.disabled, windows: windows, checkedAt: time)
+            }
+            latest = .init(accounts: accounts, fetchedAt: time)
+            history.record(latest)
+        }
+        return (latest, history)
+    }
+    func forecast(_ fixture: (QuotaSnapshot, PaceHistory), at date: Date? = nil, provider: Provider = .claude) -> PaceForecast {
+        PaceForecaster.forecast(snapshot: fixture.0, history: fixture.1, provider: provider, at: date ?? now, calendar: calendar)
     }
 
-    func testEvenSpreadIsSteady() throws {
-        let estimate = try XCTUnwrap(window(used: 50, renewsIn: 3.5 * day).pace(at: now))
-        XCTAssertEqual(estimate.pace, .steady)
-        XCTAssertEqual(estimate.projectedUse, 95.8, accuracy: 0.1)
-        XCTAssertNil(estimate.runsOutAt)
-        XCTAssertEqual(window("five_hour", used: 80, renewsIn: hour).pace(at: now)?.pace, .steady)
+    func testIdleWeeklyClockStillGetsAFullWeekHorizon() {
+        var f = fixture([Spec()])
+        f.0.accounts[0].windows[0].usedPercent = 0
+        f.0.accounts[0].windows[0].resetsAt = nil
+        let result = forecast(f)
+        XCTAssertEqual(result.horizon.timeIntervalSince(now), 7 * 86400, accuracy: 1)
+        XCTAssertNotEqual(result.gap, .readings)
     }
-    func testFastUseRunsOutBeforeTheRenewal() throws {
-        let session = window("five_hour", used: 40, renewsIn: 4 * hour)
-        let estimate = try XCTUnwrap(session.pace(at: now))
-        XCTAssertEqual(estimate.pace, .over)
-        XCTAssertGreaterThan(estimate.projectedUse, 100)
-        let runsOut = try XCTUnwrap(estimate.runsOutAt)
-        XCTAssertGreaterThan(runsOut, now)
-        XCTAssertLessThan(runsOut, try XCTUnwrap(session.resetsAt))
-        XCTAssertEqual(session.tone(at: now), .overPace)
-        XCTAssertEqual(window(used: 55, renewsIn: 3.5 * day).pace(at: now)?.pace, .over)
+    func testColdStartIsNeutralAndNeverInventsIndividualPacing() {
+        let f = fixture([Spec()], hours: 0)
+        XCTAssertNil(forecast(f).pace)
+        XCTAssertEqual(forecast(f).gap, .history)
+        XCTAssertEqual(f.0.accounts[0].tone(at: now), .unknown)
+        XCTAssertEqual(f.0.accounts[0].windows[0].tone(at: now), .unknown)
+        XCTAssertEqual(MeterTone(left: 5, pace: nil), .unknown)
     }
-    func testLittleUseIsWellUnder() {
-        XCTAssertEqual(window(used: 15, renewsIn: 2.8 * day).pace(at: now)?.pace, .under)
-        XCTAssertEqual(window("five_hour", used: 0, renewsIn: 2 * hour).pace(at: now)?.pace, .under)
-        XCTAssertEqual(window(used: 15, renewsIn: 2.8 * day).tone(at: now), .underPace)
+    func testQuietDemandHasConfidentGlobalHeadroom() {
+        let result = forecast(fixture([Spec()]))
+        XCTAssertEqual(result.pace, .under)
+        XCTAssertGreaterThan(result.observedHours, 9)
+        XCTAssertLessThan(result.pressureRange!.upperBound, 0.5)
     }
-    func testAQuietOrBusyStartDoesNotDecideThePace() {
-        // Nothing used yet, or a burst in a window's first minutes, is not yet a pace.
-        XCTAssertEqual(window("five_hour", used: 0, renewsIn: 5 * hour).pace(at: now)?.pace, .steady)
-        XCTAssertEqual(window("five_hour", used: 4, renewsIn: 4.9 * hour).pace(at: now)?.pace, .steady)
-        XCTAssertEqual(window(used: 2, renewsIn: 6.9 * day).pace(at: now)?.pace, .steady)
-        // A heavy start still counts.
-        XCTAssertEqual(window("five_hour", used: 20, renewsIn: 4.5 * hour).pace(at: now)?.pace, .over)
+    func testModerateDemandIsGreenWhenWholeBandIsAboveHalfButFeasible() {
+        let result = forecast(fixture([Spec(weeklyUsed: 40, weeklyRate: 1.8, weeklyReset: 24)]))
+        XCTAssertEqual(result.pace, .steady)
+        XCTAssertGreaterThanOrEqual(result.pressureRange!.lowerBound, 0.5)
+        XCTAssertLessThan(result.pressureRange!.upperBound, 1)
     }
-    func testPaceNeedsAFreshReadingOfAKnownWindow() {
-        XCTAssertNil(window(used: 50, renewsIn: nil).pace(at: now))
-        XCTAssertNil(window("primary", used: 50, renewsIn: day).pace(at: now))
-        XCTAssertNil(window("five_hour", used: 50, renewsIn: 2 * day).pace(at: now))
-        XCTAssertNil(window(used: nil, renewsIn: day).pace(at: now))
-        XCTAssertNil(window(used: 50, renewsIn: day).pace(at: now.addingTimeInterval(601)))
-        XCTAssertNil(window(used: 50, renewsIn: 60).pace(at: now.addingTimeInterval(120)))
+    func testShortageEvenAtLowDemandIsOrange() {
+        let result = forecast(fixture([Spec(weeklyUsed: 90, weeklyRate: 3, weeklyReset: 48)]))
+        XCTAssertEqual(result.pace, .over)
+        XCTAssertNotNil(result.shortageAt)
+        XCTAssertLessThan(result.shortageAt!, now.addingTimeInterval(48 * hour))
     }
-    func testColorShowsThePaceOnceLevelAloneNoLongerDecides() {
-        // Little left but renewing before it runs out: on track, not a warning.
-        XCTAssertEqual(window("five_hour", used: 95, renewsIn: 10 * 60).tone(at: now), .ok)
-        XCTAssertEqual(window(used: 100, renewsIn: day).tone(at: now), .out)
-        // Without a pace, the level decides as before.
-        XCTAssertEqual(window(used: 95, renewsIn: nil).tone(at: now), .low)
-        XCTAssertEqual(window(used: 50, renewsIn: nil).tone(at: now), .ok)
+    func testBoundaryCrossingAbstainsInsteadOfFallingBackToLevel() {
+        let result = forecast(fixture([Spec(weeklyUsed: 40, weeklyRate: 0.6, weeklyReset: 48)]))
+        XCTAssertNil(result.pace)
+        XCTAssertEqual(result.gap, .uncertainty)
     }
-    func testAnAccountRunsOutIfAnyAllowanceDoesAndIsUnderOnlyIfAllAre() {
-        let fastSession = window("five_hour", used: 40, renewsIn: 4 * hour)
-        let quietSession = window("five_hour", used: 0, renewsIn: 2 * hour)
-        let steadyWeek = window(used: 50, renewsIn: 3.5 * day)
-        let quietWeek = window(used: 15, renewsIn: 2.8 * day)
-        XCTAssertEqual(account("a", [fastSession, quietWeek]).pace(at: now), .over)
-        XCTAssertEqual(account("a", [fastSession, quietWeek]).tone(at: now), .overPace)
-        XCTAssertEqual(account("a", [quietSession, quietWeek]).tone(at: now), .underPace)
-        XCTAssertEqual(account("a", [quietSession, steadyWeek]).tone(at: now), .ok)
-        // A model's own allowance has its own pace, shown in the details only.
-        let fastOpus = window("seven_day_opus", used: 90, renewsIn: 6 * day, scoped: true)
-        XCTAssertEqual(fastOpus.pace(at: now)?.pace, .over)
-        XCTAssertEqual(account("a", [quietSession, quietWeek, fastOpus]).pace(at: now), .under)
+    func testStaggeredWeeklyRenewalRescuesThePool() {
+        let early = Spec(id: "early", weeklyUsed: 98, weeklyRate: 1, weeklyReset: 1)
+        let later = Spec(id: "later", weeklyUsed: 40, weeklyRate: 0.1, weeklyReset: 48)
+        let result = forecast(fixture([early, later]))
+        XCTAssertNotEqual(result.pace, .over)
+        XCTAssertNotNil(result.pace)
+        XCTAssertNil(result.shortageAt)
+        XCTAssertEqual(forecast(fixture([Spec(id: "early", weeklyUsed: 98, weeklyRate: 1, weeklyReset: 48)])).pace, .over)
     }
-    func testAnAllowanceInUseWithoutAPaceLeavesTheLevelToDecide() {
-        let quietWeek = window(used: 15, renewsIn: 2.8 * day)
-        // A session that hasn't started has no renewal time yet and doesn't count.
-        XCTAssertEqual(account("a", [window("five_hour", used: 0, renewsIn: nil), quietWeek]).pace(at: now), .under)
-        let unknown = account("a", [window("primary", used: 92, renewsIn: hour), quietWeek])
-        XCTAssertNil(unknown.pace(at: now))
-        XCTAssertEqual(unknown.tone(at: now), .low)
-        XCTAssertNil(Pace.combined([], at: now))
+    func testSessionRenewalIsNotWeeklyRenewalAndConstraintsAreCoupled() {
+        let result = forecast(fixture([Spec(weeklyUsed: 98, weeklyRate: 1, weeklyReset: 48, sessionRate: 2)]))
+        XCTAssertEqual(result.pace, .over) // Fresh sessions cannot refill the exhausted weekly budget.
+        let renewable = forecast(fixture([Spec(weeklyUsed: 20, weeklyRate: 0.3, weeklyReset: 48, sessionRate: 3)]))
+        XCTAssertNotEqual(renewable.pace, .over) // Session refills repeat, not a single 100% for the whole horizon.
+        XCTAssertNotNil(renewable.pace)
     }
-    func testAllowancesOfOneKindPoolTheirUse() {
-        let fastWeek = window(used: 55, renewsIn: 3.5 * day)
-        let quietWeek = window(used: 15, renewsIn: 2.8 * day)
-        XCTAssertEqual(Pace.combined([fastWeek], at: now), .over)
-        XCTAssertEqual(Pace.combined([fastWeek, quietWeek], at: now), .steady)
-        XCTAssertEqual(Pace.combined([quietWeek, quietWeek], at: now), .under)
-        // An unused session that hasn't started adds room but no pace of its own.
-        let fastSession = window("five_hour", used: 40, renewsIn: 4 * hour)
-        XCTAssertEqual(Pace.combined([fastSession, window("five_hour", used: 0, renewsIn: nil)], at: now), .steady)
-        XCTAssertNil(Pace.combined([fastWeek, window(used: 30, renewsIn: nil)], at: now))
+    func testCapacityOnDifferentLicencesCannotBypassTheirOwnOtherLimit() {
+        var f = fixture([Spec(id: "a", weeklyUsed: 20, weeklyRate: 0.3, sessionRate: 2),
+                         Spec(id: "b", weeklyUsed: 20, weeklyRate: 0.3, sessionRate: 2)])
+        // Session room on A, weekly room on B. Neither can serve a request before its reset.
+        f.0.accounts[0].windows[0].usedPercent = 100
+        f.0.accounts[1].windows[1].usedPercent = 100
+        XCTAssertNil(forecast(f).pace) // A marginal pooled average would incorrectly promise capacity.
     }
-    func testIconBarsCarryThePaceOfTheAccountsTheyShow() {
-        let codex = account("o", provider: .codex, [window("five_hour", used: 40, renewsIn: 4 * hour), window(used: 15, renewsIn: 2.8 * day)])
-        let claude = account("c", [window("five_hour", used: 0, renewsIn: 2 * hour), window(used: 15, renewsIn: 2.8 * day)])
-        let snapshot = QuotaSnapshot(accounts: [codex, claude], fetchedAt: now)
-        let providers = IconMetrics.bars(snapshot: snapshot, preferences: .init(), at: now)
-        XCTAssertEqual(providers.map(\.pace), [.over, .under])
-        XCTAssertEqual(providers.map(\.tone), [.overPace, .underPace])
-        var preferences = IconPreferences(); preferences.content = .windows
-        // Pooled, one account's fast session is absorbed by the other's quiet one.
-        let windows = IconMetrics.bars(snapshot: snapshot, preferences: preferences, at: now)
-        XCTAssertEqual(windows.map(\.pace), [.steady, .under])
-        XCTAssertEqual(IconMetrics.bars(snapshot: snapshot, preferences: preferences, at: now, offline: true).map(\.tone), [.unknown, .unknown])
+    func testDisabledAccountsDoNotAddCapacityOrDemand() {
+        let base = Spec(weeklyUsed: 90, weeklyRate: 3, weeklyReset: 48)
+        let result = forecast(fixture([base, Spec(id: "off", weeklyUsed: 0, weeklyRate: 0, disabled: true)]))
+        XCTAssertEqual(result.pace, .over)
+    }
+    func testProvidersCannotSubsidizeEachOther() {
+        let f = fixture([Spec(weeklyUsed: 90, weeklyRate: 3, weeklyReset: 48),
+                         Spec(id: "codex", provider: .codex, plan: "Pro", weeklyUsed: 20, weeklyRate: 0.3)])
+        XCTAssertEqual(forecast(f).pace, .over)
+        XCTAssertEqual(forecast(f, provider: .codex).pace, .under)
+    }
+    func testMissingStaleUnknownAndMixedPlanCapacityAllAbstain() {
+        var f = fixture([Spec()])
+        f.0.accounts[0].windows[0].observedAt = now.addingTimeInterval(-601)
+        XCTAssertEqual(forecast(f).gap, .readings)
+        f = fixture([Spec()]); f.0.accounts[0].windows[0].resetsAt = nil
+        XCTAssertEqual(forecast(f).gap, .readings)
+        f = fixture([Spec()]); f.0.accounts[0].plan = nil
+        XCTAssertEqual(forecast(f).gap, .capacity)
+        XCTAssertEqual(forecast(fixture([Spec(), Spec(id: "b", plan: "Pro")])).gap, .capacity)
+        f = fixture([Spec()]); f.0.accounts[0].readError = "failed"
+        XCTAssertEqual(forecast(f).gap, .readings)
+    }
+    func testPollingCachedReadingsDoesNotManufactureEvidence() {
+        let f = fixture([Spec()], hours: 0)
+        var history = f.1
+        for step in 1...1000 {
+            var snapshot = f.0
+            snapshot.fetchedAt = now.addingTimeInterval(Double(step) * 30)
+            history.record(snapshot)
+        }
+        XCTAssertEqual(history.frames.count, 1)
+    }
+    func testSleepGapAndFleetChangesRequireNewEvidence() {
+        var f = fixture([Spec()])
+        f.0.fetchedAt = now.addingTimeInterval(3 * hour)
+        f.0.accounts[0].windows[0].observedAt = f.0.fetchedAt
+        f.1.record(f.0)
+        XCTAssertEqual(forecast(f, at: f.0.fetchedAt).gap, .history)
+        f = fixture([Spec()]); f.0.accounts[0].id = "new"
+        XCTAssertEqual(forecast(f).gap, .history)
+    }
+    func scheduledFixture(ending: Date, days: Int = 14, schedule: (Date) -> Double) -> (QuotaSnapshot, PaceHistory) {
+        var history = PaceHistory(), snapshot = QuotaSnapshot(accounts: [], fetchedAt: ending)
+        let start = ending.addingTimeInterval(-Double(days) * 24 * hour)
+        var used = 0.0, reset = start.addingTimeInterval(6 * 24 * hour)
+        for step in 0...(days * 24 * 12) {
+            let time = start.addingTimeInterval(Double(step) * 300)
+            if time >= reset { used = 0; reset = reset.addingTimeInterval(7 * 24 * hour) }
+            if step > 0 { used += schedule(time.addingTimeInterval(-150)) / 12 }
+            snapshot = .init(accounts: [.init(id: "a", provider: .claude, label: "private-name", plan: "Max",
+                windows: [.init(id: "seven_day", usedPercent: used, resetsAt: reset, observedAt: time)])], fetchedAt: time)
+            history.record(snapshot)
+        }
+        // At a reset, a fresh provider cycle has a future reset, not an elapsed one.
+        return (snapshot, history)
+    }
+    func testRecentAccelerationOutweighsQuietNight() {
+        let end = now
+        var burst = scheduledFixture(ending: end, days: 2) { date in
+            date > end.addingTimeInterval(-2 * self.hour) ? 2 : 0.3
+        }
+        var quiet = scheduledFixture(ending: end, days: 2) { _ in 0.3 }
+        for i in burst.0.accounts[0].windows.indices {
+            burst.0.accounts[0].windows[i].usedPercent = 80
+            burst.0.accounts[0].windows[i].resetsAt = end.addingTimeInterval(24 * hour)
+            quiet.0.accounts[0].windows[i] = burst.0.accounts[0].windows[i]
+        }
+        let rising = forecast(burst), calm = forecast(quiet)
+        XCTAssertEqual(calm.pace, .under)
+        XCTAssertGreaterThan(rising.recentDemand["seven_day"]!, rising.baselineDemand["seven_day"]! * 2)
+        XCTAssertGreaterThan(rising.pressureRange!.upperBound, calm.pressureRange!.upperBound * 2)
+        XCTAssertNotEqual(rising.pace, .under)
+    }
+    func testMondayUsesFridayNotWeekendZeros() {
+        let monday = ISO8601DateFormatter().date(from: "2026-10-19T12:00:00Z")!
+        let f = scheduledFixture(ending: monday) { date in self.calendar.isDateInWeekend(date) ? 0 : 0.5 }
+        let result = forecast(f, at: monday)
+        XCTAssertGreaterThan(result.observedHours, 20)
+        XCTAssertEqual(result.baselineDemand["seven_day"]!, 0.5, accuracy: 0.001)
+        XCTAssertEqual(result.recentDemand["seven_day"]!, 0.5, accuracy: 0.001)
+    }
+    func testLearnedInactiveWeekendCanForecastWithoutAssumingWeekdayDemand() {
+        let saturday = ISO8601DateFormatter().date(from: "2026-10-17T18:00:00Z")!
+        var idle = scheduledFixture(ending: saturday) { date in self.calendar.isDateInWeekend(date) ? 0 : 0.5 }
+        var continuous = scheduledFixture(ending: saturday) { _ in 0.5 }
+        for f in 0...1 {
+            if f == 0 {
+                idle.0.accounts[0].windows[0].usedPercent = 80
+                idle.0.accounts[0].windows[0].resetsAt = saturday.addingTimeInterval(24 * hour)
+            } else { continuous.0.accounts[0].windows[0] = idle.0.accounts[0].windows[0] }
+        }
+        let off = forecast(idle, at: saturday), on = forecast(continuous, at: saturday)
+        XCTAssertEqual(off.pace, .under)
+        XCTAssertLessThan(off.pressureRange!.upperBound, on.pressureRange!.upperBound * 0.6)
+    }
+    func testFastBurstClockDoesNotPauseAtWeekendBoundary() {
+        let saturday = ISO8601DateFormatter().date(from: "2026-10-17T01:00:00Z")!
+        let burstStart = saturday.addingTimeInterval(-2 * hour)
+        let boundary = saturday.addingTimeInterval(-hour)
+        let f = scheduledFixture(ending: saturday) { date in
+            if date > burstStart && date < boundary { return 2 }
+            return self.calendar.isDateInWeekend(date) ? 0 : 0.2
+        }
+        let result = forecast(f, at: saturday)
+        // 30-minute half-life over the actual last two hours: the earlier hour has one fifth of the weight.
+        XCTAssertEqual(result.recentDemand["seven_day"]!, 0.4, accuracy: 0.025)
+    }
+    func testAmbiguousUnavailabilityAndExpiredCooldownDoNotAddUsableSupply() {
+        var f = fixture([Spec()])
+        f.0.accounts[0].unavailable = true
+        f.0.accounts[0].cooldownUntil = now.addingTimeInterval(-60)
+        XCTAssertEqual(forecast(f).gap, .readings)
+        f.0.accounts[0].cooldownUntil = nil
+        XCTAssertEqual(forecast(f).gap, .readings)
+    }
+    func testResetDecreaseAndUnchangedTimestampAreNotNegativeOrZeroDemand() {
+        var f = fixture([Spec()])
+        let priorCount = f.1.frames.count
+        var reset = f.0
+        reset.fetchedAt = now.addingTimeInterval(300)
+        reset.accounts[0].windows[0].observedAt = reset.fetchedAt
+        reset.accounts[0].windows[0].usedPercent = 0
+        reset.accounts[0].windows[0].resetsAt = reset.fetchedAt.addingTimeInterval(7 * 86400)
+        f.1.record(reset)
+        XCTAssertEqual(f.1.frames.count, priorCount + 1)
+        let result = forecast((reset, f.1), at: reset.fetchedAt)
+        XCTAssertEqual(result.baselineDemand["seven_day"]!, 0.3, accuracy: 0.001)
+    }
+    func testHistoryRoundTripKeepsOnlyMinimalLocalFields() throws {
+        let f = fixture([Spec()])
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("history.json")
+        try f.1.save(to: url)
+        XCTAssertEqual(PaceHistory.load(from: url).frames.count, f.1.frames.count)
+        XCTAssertFalse(try String(contentsOf: url, encoding: .utf8).contains("private-name"))
+        XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int, 0o600)
     }
 }

@@ -2,6 +2,7 @@ import Foundation
 import QuotaCore
 
 enum Copy {
+    static let projectURL = URL(string: "https://github.com/mindtheflo/juice-bar")!
     static var language: String { UserDefaults.standard.string(forKey: "language") ?? "auto" }
     static var isFrench: Bool {
         language == "fr" || (language == "auto" && (Locale.preferredLanguages.first ?? "en").hasPrefix("fr"))
@@ -14,25 +15,34 @@ enum Copy {
     /// A pace, as it follows an amount left: “62% left, on track”.
     static func pace(_ pace: Pace) -> String { text("pace" + pace.rawValue.capitalized) }
     static let en = [
-        "iconSettings": "Menu bar icon", "iconPreview": "Icon preview", "orientation": "Orientation",
-        "vertical": "Vertical", "horizontal": "Horizontal", "iconAppearance": "Appearance",
-        "color": "Color", "monochrome": "Black & white", "iconShows": "Bars show",
+        "moreInfo": "More information", "project": "Project on GitHub ↗",
+        "forecastHelp": "Colours forecast enabled accounts together, using the last 24 comparable hours, recent bursts and both session and weekly renewals. Weekdays and weekends are modelled separately. Grey means confidence is insufficient. A new forecast needs at least six observed hours; learning continues in the background.",
+        "accountDetails": "Account details",
+        "on": "On", "in": "In",
+        "timeHint": "Click to switch between time remaining and the exact renewal date and time.",
+        "percentageHint": "Hover to see the percentage remaining. Click an account to open its details.",
+        "iconSettings": "Menu bar icon", "iconPreview": "Icon preview",
+        "iconShows": "Bars show",
         "iconProviders": "OpenAI + Claude", "iconWindows": "Session + weekly", "provider": "Provider",
         "openai": "OpenAI", "claude": "Claude",
-        "providersHint": "Each bar is a provider’s enabled accounts together, out of 100%. Each account adds what its tighter session or weekly limit leaves, and all count the same, since plans report a share rather than tokens or dollars.",
+        "providersHint": "OpenAI is on top, Claude underneath. Each bar shows the pooled weekly capacity of that provider’s enabled accounts, out of 100%. For five licences, 86 points left out of 500 fills 17.2% of the bar. Colours still forecast both session and weekly limits.",
         "notReportedOne": "1 account not reported", "notReportedMany": "%@ accounts not reported",
-        "windowsHint": "Each bar is the session or weekly allowance of every enabled account together, out of 100%, each account counting the same. An account without a reading counts as empty, so the bar shows at least what’s left (≥).",
-        "verticalOrder": "First bar on the left; second on the right.",
-        "horizontalOrder": "First bar on top; second underneath.",
-        "paceLegend": "Colors show the pace since each allowance renewed: green on track, orange on pace to run out before renewal, blue well under pace, red used up.",
-        "monochromeLegend": "Black & white shows only what’s left; the icon’s tooltip tells the pace.",
-        "paceOver": "on pace to run out before renewal", "paceSteady": "on track", "paceUnder": "well under pace",
-        "paceOverLine": "At this pace, runs out in %@", "paceSteadyLine": "On track · about %@ used by renewal",
-        "paceUnderLine": "Well under pace · about %@ used by renewal",
+        "windowsHint": "Session is on the left, weekly on the right. Each bar is the session or weekly allowance of every enabled account together, out of 100%, each account counting the same. An account without a reading counts as empty, so the bar shows at least what’s left (≥).",
+        "paceLegend": "Global forecast: green on track, orange a shortage before renewal, blue ample headroom. Grey means insufficient confidence. Red means quota is already exhausted. Individual accounts show measured levels only.",
+        "forecastUnknown": "Forecast uncertain",
+        "forecastHistory": "Learning recent demand",
+        "forecastReadings": "Forecast needs fresh quota readings",
+        "forecastCapacity": "Forecast needs comparable plan capacities",
+        "forecastActivity": "Not enough measured activity",
+        "forecastUncertainty": "Forecast uncertain",
+        "forecastHint": "Enabled accounts together, with recent demand, bursts, local-time activity and session + weekly renewals. Colours appear only when conservative demand scenarios agree.",
+        "paceOver": "global quota shortage predicted", "paceSteady": "on track", "paceUnder": "ample global headroom",
         "accountEnabled": "Use this account", "accountToggleHint": "Allow this account to handle new requests.",
         "accountUpdateFailed": "The change could not be confirmed. Refresh to check the current state.",
         "accountUpdating": "Updating…",
         "session": "Session", "weekly": "Weekly",
+        "sessionIdle": "5h after first use", "renewalUnknown": "Renewal not reported",
+        "sessionIdleHint": "Your five-hour allowance is full and Claude reports no active renewal time. The five-hour window starts when you next use this account.",
         "launchAtLogin": "Launch at login", "loginApproval": "Allow in System Settings…",
         "loginError": "Could not update login settings. Check System Settings → Login Items.",
         "proxyStatus": "Proxy", "connected": "Connected", "notConnected": "Not connected",
@@ -78,25 +88,34 @@ enum Copy {
         "version": "Version", "lastCheckedAt": "Checked", "updateMenu": "Install update", "restartMenu": "Restart to update",
     ]
     static let fr = [
-        "iconSettings": "Icône de la barre des menus", "iconPreview": "Aperçu de l’icône", "orientation": "Orientation",
-        "vertical": "Verticale", "horizontal": "Horizontale", "iconAppearance": "Apparence",
-        "color": "Couleur", "monochrome": "Noir et blanc", "iconShows": "Les barres indiquent",
+        "moreInfo": "Plus d’informations", "project": "Projet sur GitHub ↗",
+        "forecastHelp": "Les couleurs prévoient tous les comptes activés, avec les dernières 24 heures comparables, les accélérations et les renouvellements de session et de semaine. Jours ouvrés et week-ends sont modélisés séparément. Gris : confiance insuffisante. Il faut au moins six heures observées au départ ; l’apprentissage continue en arrière-plan.",
+        "accountDetails": "Détails du compte",
+        "on": "Le", "in": "Dans",
+        "timeHint": "Clique pour alterner entre le temps restant et la date et l’heure exactes du renouvellement.",
+        "percentageHint": "Survole pour voir le pourcentage restant. Clique sur un compte pour ouvrir ses détails.",
+        "iconSettings": "Icône de la barre des menus", "iconPreview": "Aperçu de l’icône",
+        "iconShows": "Les barres indiquent",
         "iconProviders": "OpenAI + Claude", "iconWindows": "Session + semaine", "provider": "Fournisseur",
         "openai": "OpenAI", "claude": "Claude",
-        "providersHint": "Chaque barre réunit les comptes activés d’un fournisseur, sur 100 %. Chaque compte y apporte ce que laisse sa limite la plus contraignante, session ou semaine, et tous pèsent autant : les forfaits indiquent une part, pas des tokens ni des dollars.",
+        "providersHint": "OpenAI en haut, Claude en dessous. Chaque barre indique la capacité hebdomadaire cumulée des comptes activés d’un fournisseur, sur 100 %. Avec cinq licences, 86 points sur 500 remplissent 17,2 % de la barre. Les couleurs prévoient toujours les limites de session et de semaine.",
         "notReportedOne": "1 compte non communiqué", "notReportedMany": "%@ comptes non communiqués",
-        "windowsHint": "Chaque barre réunit la session ou la semaine de tous les comptes activés, sur 100 %, chaque compte pesant autant. Un compte sans valeur compte pour vide : la barre indique alors au moins ce qui reste (≥).",
-        "verticalOrder": "Première barre à gauche, deuxième à droite.",
-        "horizontalOrder": "Première barre en haut, deuxième en dessous.",
-        "paceLegend": "Les couleurs indiquent le rythme depuis le renouvellement de chaque quota : vert dans le rythme, orange épuisé avant le renouvellement à ce rythme, bleu bien en dessous du rythme, rouge épuisé.",
-        "monochromeLegend": "En noir et blanc, seul le niveau restant s’affiche ; l’infobulle de l’icône indique le rythme.",
-        "paceOver": "épuisé avant le renouvellement à ce rythme", "paceSteady": "dans le rythme", "paceUnder": "bien en dessous du rythme",
-        "paceOverLine": "À ce rythme, épuisé dans %@", "paceSteadyLine": "Dans le rythme · environ %@ utilisés d’ici le renouvellement",
-        "paceUnderLine": "Bien en dessous du rythme · environ %@ utilisés d’ici le renouvellement",
+        "windowsHint": "Session à gauche, semaine à droite. Chaque barre réunit la session ou la semaine de tous les comptes activés, sur 100 %, chaque compte pesant autant. Un compte sans valeur compte pour vide : la barre indique alors au moins ce qui reste (≥).",
+        "paceLegend": "Prévision globale : vert dans le rythme, orange manque de quota avant renouvellement, bleu marge importante. Gris : confiance insuffisante. Rouge : quota déjà épuisé. Les comptes individuels affichent uniquement les niveaux mesurés.",
+        "forecastUnknown": "Prévision incertaine",
+        "forecastHistory": "Apprentissage de l’activité récente",
+        "forecastReadings": "Des quotas récents sont nécessaires",
+        "forecastCapacity": "Des capacités comparables sont nécessaires",
+        "forecastActivity": "Pas assez d’activité mesurée",
+        "forecastUncertainty": "Prévision incertaine",
+        "forecastHint": "Tous les comptes activés, avec activité récente, accélérations, heures locales et renouvellements session + semaine. Une couleur exige l’accord des scénarios de demande prudents.",
+        "paceOver": "manque de quota global prévu", "paceSteady": "dans le rythme", "paceUnder": "marge globale importante",
         "accountEnabled": "Utiliser ce compte", "accountToggleHint": "Autoriser de nouvelles requêtes sur ce compte.",
         "accountUpdateFailed": "La modification n’a pas pu être confirmée. Actualise pour vérifier l’état actuel.",
         "accountUpdating": "Mise à jour…",
         "session": "Session", "weekly": "Semaine",
+        "sessionIdle": "5h après utilisation", "renewalUnknown": "Renouvellement inconnu",
+        "sessionIdleHint": "Ton quota de cinq heures est plein et Claude n’indique aucun renouvellement actif. La fenêtre de cinq heures commence à la prochaine utilisation de ce compte.",
         "launchAtLogin": "Lancer à l’ouverture de session", "loginApproval": "Autoriser dans les Réglages Système…",
         "loginError": "Impossible de modifier le démarrage. Vérifie Réglages Système → Ouverture.",
         "proxyStatus": "Proxy", "connected": "Connecté", "notConnected": "Non connecté",
@@ -152,10 +171,10 @@ enum Copy {
         if m >= 60 { return "\(m / 60)h \(m % 60)m" }
         return "\(m)m"
     }
-    /// A date and time within the coming week, without the year: “7:46 PM” today, “Mon, Oct 19 at 7:46 PM” otherwise.
+    /// An absolute renewal always includes its day, date and time, even when it is today.
     static func moment(_ date: Date, now: Date) -> String {
         let f = DateFormatter(); f.locale = locale
-        f.setLocalizedDateFormatFromTemplate(Calendar.current.isDate(date, inSameDayAs: now) ? "jmm" : "EEEMMMdjmm")
+        f.setLocalizedDateFormatFromTemplate("EEEMMMdjmm")
         return f.string(from: date)
     }
     static func timestamp(_ date: Date, now: Date, includeDate: Bool = false) -> String {
