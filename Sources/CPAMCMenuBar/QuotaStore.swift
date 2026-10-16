@@ -120,8 +120,10 @@ final class QuotaStore: ObservableObject {
         try new.save()
         configuration = new
         client = ProxyClient(configuration: new)
-        paceHistory = PaceHistory(source: new.paceHistorySource)
-        try? paceHistory.save()
+        if paceHistory.source != new.paceHistorySource {
+            paceHistory = PaceHistory(source: new.paceHistorySource)
+            try? paceHistory.save()
+        }
         forecasts = [:]
         snapshot = nil
         error = nil

@@ -148,8 +148,94 @@ final class PaceTests: XCTestCase {
         f.0.accounts[0].windows[0].observedAt = f.0.fetchedAt
         f.1.record(f.0)
         XCTAssertEqual(forecast(f, at: f.0.fetchedAt).gap, .history)
+        XCTAssertEqual(forecast(f, at: f.0.fetchedAt).recentObservedHours, 0)
         f = fixture([Spec()]); f.0.accounts[0].id = "new"
         XCTAssertEqual(forecast(f).gap, .history)
+    }
+    func testRestartWithoutQuotaMetadataPreservesEarlierObservedHours() throws {
+        let before = fixture([Spec()], ending: now.addingTimeInterval(-2 * hour))
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: url) }
+        try before.1.save(to: url)
+        var history = PaceHistory.load(from: url)
+        var startup = before.0
+        startup.fetchedAt = now.addingTimeInterval(-2 * hour + 300)
+        startup.accounts[0].plan = nil
+        startup.accounts[0].windows = []
+        history.record(startup)
+        let after = fixture([Spec()], hours: 2)
+        for frame in after.1.frames {
+            var snapshot = after.0
+            snapshot.fetchedAt = frame.date
+            snapshot.accounts[0].windows = frame.accounts[0].windows
+            history.record(snapshot)
+        }
+        let result = forecast((after.0, history))
+        XCTAssertGreaterThan(result.observedHours, 11)
+        XCTAssertEqual(result.recentObservedHours, 11.0 / 6, accuracy: 0.001)
+        XCTAssertEqual(result.pace, .under)
+    }
+    func testUnusedCodexAccountWithMovingResetDoesNotBlockFleetLearning() {
+        var f = fixture([Spec(id: "active", provider: .codex, plan: "Pro"),
+                         Spec(id: "idle", provider: .codex, plan: "Pro", weeklyUsed: 0, weeklyRate: 0)])
+        var history = PaceHistory()
+        for frame in f.1.frames {
+            var snapshot = f.0
+            snapshot.fetchedAt = frame.date
+            for i in snapshot.accounts.indices { snapshot.accounts[i].windows = frame.accounts[i].windows }
+            snapshot.accounts[1].windows[0].resetsAt = frame.date.addingTimeInterval(7 * 86400)
+            history.record(snapshot)
+            f.0 = snapshot
+        }
+        let result = forecast((f.0, history), provider: .codex)
+        XCTAssertEqual(result.observedHours, 10, accuracy: 0.001)
+        XCTAssertEqual(result.baselineDemand["seven_day"] ?? -1, 0.3, accuracy: 0.001)
+        XCTAssertEqual(result.pace, .under)
+    }
+    func testConfirmedFleetChangesStillRequireNewEvidenceAfterReturning() {
+        let f = fixture([Spec()])
+        let changes: [(inout SubscriptionAccount) -> Void] = [
+            { $0.id = "replacement" }, { $0.plan = "Pro" }, { $0.disabled = true },
+            { $0.windows[0].id = "five_hour" }
+        ]
+        for change in changes {
+            var history = PaceHistory()
+            for frame in f.1.frames {
+                var snapshot = f.0
+                snapshot.fetchedAt = frame.date
+                snapshot.accounts[0].windows = frame.accounts[0].windows
+                if frame.date == now.addingTimeInterval(-5 * hour) { change(&snapshot.accounts[0]) }
+                history.record(snapshot)
+            }
+            let result = forecast((f.0, history))
+            XCTAssertLessThan(result.observedHours, 5)
+            XCTAssertEqual(result.gap, .history)
+            XCTAssertNil(result.pace)
+        }
+    }
+    func testSlowIntegerQuotaChangesAreMeasuredActivityNotMissingEvidence() {
+        var f = fixture([Spec(provider: .codex, plan: "Pro", weeklyUsed: 5, weeklyRate: 0.2, weeklyReset: 24)])
+        var history = PaceHistory()
+        for frame in f.1.frames {
+            var snapshot = f.0
+            snapshot.fetchedAt = frame.date
+            snapshot.accounts[0].windows = frame.accounts[0].windows
+            snapshot.accounts[0].windows[0].usedPercent = frame.accounts[0].windows[0].usedPercent!.rounded(.down)
+            history.record(snapshot)
+            f.0 = snapshot
+        }
+        let result = forecast((f.0, history), provider: .codex)
+        XCTAssertEqual(result.observedHours, 10, accuracy: 0.001)
+        XCTAssertEqual(result.pace, .under)
+        XCTAssertGreaterThan(result.baselineDemand["seven_day"] ?? 0, 0)
+    }
+    func testUnmeasuredActivityAndCompletelyBlockedFleetStillAbstain() {
+        let idle = forecast(fixture([Spec(weeklyUsed: 0, weeklyRate: 0)]))
+        XCTAssertEqual(idle.gap, .activity)
+        XCTAssertNil(idle.pace)
+        let blocked = forecast(fixture([Spec(weeklyUsed: 100, weeklyRate: 0)]))
+        XCTAssertEqual(blocked.observedHours, 0)
+        XCTAssertNil(blocked.pace)
     }
     func scheduledFixture(ending: Date, days: Int = 14, schedule: (Date) -> Double) -> (QuotaSnapshot, PaceHistory) {
         var history = PaceHistory(), snapshot = QuotaSnapshot(accounts: [], fetchedAt: ending)

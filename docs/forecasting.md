@@ -14,7 +14,9 @@ Time is in hours; usage is in **percentage points of one licence’s quota**. Tw
 
 A valid interval requires fresh, advancing readings on every enabled account, the same quota cycle, nondecreasing usage, and at most 15 minutes between observations. Crossing a reset discards that interval instead of inventing either negative demand or an assumed 100-point spend. Duplicate cached reads provide no evidence. A completely blocked fleet censors demand, so its flat usage is not evidence of inactivity. Historical changes can include direct clients using the same subscriptions; the quota endpoint does not identify the caller.
 
-Only the current continuous fleet configuration is used. Disabled licences add neither demand nor capacity. Same-provider plans must be known and identical: percentages alone do not identify an exchange rate between different plans. Unknown/custom quota durations, stale readings and ambiguous availability cause abstention.
+Positive quota increments establish measured activity within that coverage. Providers that report whole percentages can remain flat between increments; the duration of positive five-minute intervals is not an estimate of how long the user worked. All-zero history still abstains, except for the learned inactive-weekend case below.
+
+Only the current continuous fleet configuration is used. Disabled licences add neither demand nor capacity. Same-provider plans must be known and identical: percentages alone do not identify an exchange rate between different plans. Unknown/custom quota durations, stale readings and ambiguous availability cause abstention. A startup reading with missing plan/window metadata interrupts observation coverage, but does not erase prior evidence for the same enabled accounts; confirmed account, plan or limit changes still start a new fleet epoch. Saving an unchanged connection preserves history. Two fresh, advancing zero-usage readings measure zero demand even if an unused allowance reports a moving reset timestamp.
 
 ## 2. Two-timescale demand, with a local-time profile
 

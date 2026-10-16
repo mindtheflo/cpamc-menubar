@@ -14,6 +14,7 @@ enum QuotaCheck {
                         "pace": estimate.pace.map { .string($0.rawValue) } ?? .null,
                         "neutral_reason": estimate.gap.map { .string($0.rawValue) } ?? .null,
                         "observed_hours": .number(estimate.observedHours),
+                        "recent_observed_hours": .number(estimate.recentObservedHours),
                         "window_paces": .object(estimate.windowPaces.mapValues { .string($0.rawValue) }),
                         "baseline_points_per_hour": .object(estimate.baselineDemand.mapValues { .number($0) }),
                         "recent_points_per_hour": .object(estimate.recentDemand.mapValues { .number($0) }),
