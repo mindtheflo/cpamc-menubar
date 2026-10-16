@@ -20,6 +20,17 @@ extension MeterTone {
     }
 }
 
+extension IconMetric {
+    var nativeColor: NSColor {
+        let original = tone.nativeColor
+        guard tone != .unknown, tone != .out,
+              let rgb = original.usingColorSpace(.deviceRGB) else { return original }
+        var hue: CGFloat = 0, chroma: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
+        rgb.getHue(&hue, saturation: &chroma, brightness: &brightness, alpha: &alpha)
+        return NSColor(deviceHue: hue, saturation: chroma * saturation, brightness: brightness, alpha: alpha)
+    }
+}
+
 struct LevelCapsule: View {
     let left: Double?
     let tone: MeterTone
@@ -36,16 +47,15 @@ struct LevelCapsule: View {
 
 enum MenuIcon {
     static func image(_ metrics: [IconMetric], preferences: IconPreferences) -> NSImage {
-        let monochrome = preferences.appearance == .monochrome
-        let vertical = preferences.orientation == .vertical
+        // Content determines geometry: providers stacked, allowance windows side by side.
+        let vertical = preferences.content == .windows
         let image = NSImage(size: NSSize(width: 24, height: 22), flipped: false) { _ in
             for (index, metric) in metrics.prefix(2).enumerated() {
                 let rect = vertical
                     ? NSRect(x: 4.5 + CGFloat(index) * 9, y: 2, width: 6, height: 18)
                     : NSRect(x: 3, y: 12.5 - CGFloat(index) * 9, width: 18, height: 6)
                 let capsule = NSBezierPath(roundedRect: rect, xRadius: 3, yRadius: 3)
-                let ink = monochrome ? NSColor.black : metric.tone.nativeColor
-                // Opaque template mask lets macOS apply the same tint as neighboring status items.
+                let ink = metric.nativeColor
                 // Empty and unknown retain an outline; the tooltip distinguishes them.
                 ink.setStroke()
                 capsule.lineWidth = 1
@@ -63,7 +73,7 @@ enum MenuIcon {
             }
             return true
         }
-        image.isTemplate = monochrome
+        image.isTemplate = false
         return image
     }
 }

@@ -45,8 +45,8 @@ final class QuotaTests: XCTestCase {
         var a = account("a", used: 30)
         a.windows.append(window(100, scoped: true))
         XCTAssertEqual(a.freshLeft(at: now), 70)
-        // 30% used with an hour of the week left: well under pace, and not used up.
-        XCTAssertEqual(a.tone(at: now), .underPace)
+        // Measured level only: no individual-licence forecast.
+        XCTAssertEqual(a.tone(at: now), .unknown)
     }
     func testCodexWeeklyPrimaryWindowIsNotMislabeledFiveHour() throws {
         let usage = try json("""
@@ -118,7 +118,7 @@ final class QuotaTests: XCTestCase {
     func testDisabledAccountShowsItsUsageWithoutBeingRoutable() {
         let a = account("off", used: 20, disabled: true)
         XCTAssertEqual(a.freshLeft(at: now), 80)
-        XCTAssertEqual(a.tone(at: now), .underPace)
+        XCTAssertEqual(a.tone(at: now), .unknown)
         XCTAssertFalse(a.isReady(at: now))
     }
     func testAccountIsDisabledAsTheProxyDecidesAndNamedByItsEmail() throws {

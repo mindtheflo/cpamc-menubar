@@ -26,11 +26,15 @@ struct ConnectionSettings: View {
             }.buttonStyle(.plain).accessibilityLabel(Copy.text("back"))
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    IconSettings(store: store).id(language)
                     general
                     proxy
                     connection
                     updates
+                    HStack {
+                        Link(Copy.text("project"), destination: Copy.projectURL)
+                        Spacer()
+                        Text(updater.versionDescription).foregroundStyle(.secondary)
+                    }.font(.system(size: 11)).padding(.horizontal, 4)
                 }
                 .padding(.horizontal, 10).padding(.top, 4).padding(.bottom, 10)
                 .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { contentHeight = $0 }
@@ -42,6 +46,7 @@ struct ConnectionSettings: View {
     }
     private var general: some View {
         SettingsSection(Copy.text("general")) {
+            IconSettings(store: store).id(language)
             SettingRow(Copy.text("launchAtLogin")) {
                 Toggle(Copy.text("launchAtLogin"), isOn: Binding(get: { controls.loginEnabled }, set: { value in
                     Task { await controls.setLogin(value, configuration: store.configuration) }
@@ -62,7 +67,7 @@ struct ConnectionSettings: View {
         }
     }
     private var proxy: some View {
-        SettingsSection(Copy.text("proxyStatus"), footer: Copy.text(controls.serviceAvailable ? "stopNote" : "serviceUnavailable")) {
+        SettingsSection(Copy.text("proxyStatus")) {
             HStack(spacing: 6) {
                 Circle().fill(store.error == nil && store.snapshot != nil ? Color.green : Color.secondary).frame(width: 7, height: 7)
                 Text(Copy.text(store.error == nil && store.snapshot != nil ? "connected" : controls.serviceAvailable && !controls.serviceRegistered ? "serviceStopped" : "notConnected"))
@@ -76,7 +81,7 @@ struct ConnectionSettings: View {
         }
     }
     private var updates: some View {
-        SettingsSection(Copy.text("updates"), footer: Copy.text("version") + " " + updater.versionDescription + ". " + Copy.text("updatesFooter")) {
+        SettingsSection(Copy.text("updates")) {
             SettingRow(Copy.text("autoUpdate")) {
                 Toggle(Copy.text("autoUpdate"), isOn: $updater.automatic).labelsHidden().toggleStyle(.switch).controlSize(.small)
                     .disabled(!updater.isUpdatable)
@@ -93,6 +98,7 @@ struct ConnectionSettings: View {
                 }
                 Text(updateStatus.text).foregroundStyle(updateStatus.failed ? Color.red : Color.primary)
                     .fixedSize(horizontal: false, vertical: true)
+                    .help(updater.lastCheck.map { Copy.text("lastCheckedAt") + " " + Copy.timestamp($0, now: store.now, includeDate: true) } ?? "")
                 Spacer(minLength: 8)
                 switch updater.phase {
                 case .idle, .current, .development, .failed:
@@ -107,11 +113,10 @@ struct ConnectionSettings: View {
         }
     }
     private var updateStatus: (text: String, failed: Bool) {
-        let checked = updater.lastCheck.map { Copy.text("lastCheckedAt") + " " + Copy.timestamp($0, now: Date()) }
         switch updater.phase {
-        case .idle: return (checked ?? "", false)
+        case .idle: return (Copy.text("updates"), false)
         case .checking: return (Copy.text("checking"), false)
-        case .current: return ([Copy.text("upToDate"), checked].compactMap { $0 }.joined(separator: " · "), false)
+        case .current: return (Copy.text("upToDate"), false)
         case .available: return (Copy.text("updateAvailable"), false)
         case .installing: return (Copy.text("installing"), false)
         case .ready: return (Copy.text("updateReady"), false)
@@ -132,7 +137,7 @@ struct ConnectionSettings: View {
         }
     }
     private var connection: some View {
-        SettingsSection(Copy.text("connection"), footer: Copy.text("keyNote")) {
+        SettingsSection(Copy.text("connection")) {
             VStack(alignment: .leading, spacing: 5) {
                 Text(Copy.text("proxyURL"))
                 TextField("http://127.0.0.1:8317", text: $endpoint).textFieldStyle(.roundedBorder).disabled(testing)
