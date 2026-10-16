@@ -4,13 +4,21 @@
 
 **Your AI subscriptions. One glance.**
 
-Claude and OpenAI capacity, session renewals and usage forecasts in your Mac’s menu bar. Built for your local CPAMC / CLIProxyAPI.
+An elegant, minimalist native Mac menu-bar companion for [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI), the popular open-source proxy for stacking AI subscriptions. Keep Claude and OpenAI capacity, session renewals and usage forecasts one glance away.
 
 - See what your enabled subscriptions have left together.
 - Check individual quotas and switch accounts on or off.
 - Forecast colours appear only when there’s enough evidence.
 
-<img src="assets/screenshots/overview.png" width="420" alt="Juice Bar subscription overview">
+<img src="assets/screenshots/overview.png" width="100%" alt="Juice Bar subscription overview in the Mac menu bar">
+
+<details>
+<summary>Account details and Settings</summary>
+
+<img src="assets/screenshots/account.png" width="100%" alt="Juice Bar account details with fictional demo data">
+<img src="assets/screenshots/settings.png" width="100%" alt="Juice Bar Settings">
+
+</details>
 
 ## Install
 

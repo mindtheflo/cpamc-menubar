@@ -3,19 +3,26 @@
   "source_sha256": "0de3e3dce9379b0b4ece34b0125b48b9ccb404a5541ac0d8a29c7df0646521a2",
   "images": {
     "overview.png": {
-      "sha256": "1a5f91e320fbd7f22cac07bdbc7dcdfd55fc9fcbb1a80ea5215a3ad91a1f5ce5",
-      "width": 720,
-      "height": 834
+      "sha256": "43be350a28ffae695aec7891616d20fe5555be33ace36b9e253eec0a64e07741",
+      "width": 3456,
+      "height": 2160
     },
     "account.png": {
-      "sha256": "0d3dcd69d2f99cad16558aa5b9072f0a0d658ed1ed1dc44dfc6ef9921994acfc",
-      "width": 720,
-      "height": 600
+      "sha256": "d741756c0d1fed4924770147519e8e08d4c6e059a131e994e068a7659a28198f",
+      "width": 3456,
+      "height": 2160
     },
     "settings.png": {
-      "sha256": "6dde13d6765d6f1e6a6353776d9b54295f1fdb3dbc663e9249d83f19b27e4532",
-      "width": 720,
-      "height": 1346
+      "sha256": "23a198a80ef16c822d3222ad6a8f84f09b5bef2d1d8466f530ef9085fcd9e82d",
+      "width": 3456,
+      "height": 2160
     }
+  },
+  "capture": {
+    "application": "CleanShot X",
+    "framing": "Native menu-bar UI on the user-approved desktop background",
+    "overview": "Installed app with account names hidden",
+    "account_and_settings": "Isolated native demo with fictional accounts; fixture-only popup anchor moved to the upper right",
+    "approved": "2026-10-16"
   }
 }
