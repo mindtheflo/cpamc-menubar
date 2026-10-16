@@ -10,6 +10,6 @@ struct IconSettings: View {
                 Text(Copy.text("iconProviders")).tag(IconContent.providers)
                 Text(Copy.text("iconWindows")).tag(IconContent.windows)
             }.pickerStyle(.segmented).labelsHidden().fixedSize()
-        }
+        }.help(Copy.text("forecastHint"))
     }
 }

@@ -23,14 +23,24 @@ public struct IconMetric: Sendable, Equatable {
     public let missing: Int
     /// How fast the allowances behind the bar are being used, when it can be told.
     public let pace: Pace?
+    public let agreement: Double
+    /// Only saturation changes; measured exhaustion remains fully red and missing data neutral.
+    public var saturation: Double {
+        switch tone {
+        case .unknown: return 0
+        case .out: return 1
+        default: return 0.2 + 0.8 * agreement
+        }
+    }
     public var isPartial: Bool { missing > 0 }
     public var tone: MeterTone {
         guard let leftPercent else { return .unknown }
         if isPartial { return .unknown }
         return MeterTone(left: leftPercent, pace: pace)
     }
-    public init(label: String, leftPercent: Double?, missing: Int = 0, pace: Pace? = nil) {
+    public init(label: String, leftPercent: Double?, missing: Int = 0, pace: Pace? = nil, agreement: Double = 1) {
         self.label = label; self.leftPercent = leftPercent; self.missing = missing; self.pace = pace
+        self.agreement = pace == nil ? 0 : (agreement.isFinite ? min(1, max(0, agreement)) : 0)
     }
 }
 
@@ -56,10 +66,11 @@ public enum IconMetrics {
                         left.append(value)
                     } else { missing += 1 }
                 }
+                let prediction = forecasts[provider]?.displayPrediction
                 return IconMetric(label: provider == .codex ? "openai" : "claude",
                                   leftPercent: left.isEmpty ? nil : left.reduce(0, +) / Double(left.count + missing),
                                   missing: missing,
-                                  pace: forecasts[provider]?.pace)
+                                  pace: prediction?.pace, agreement: prediction?.agreement ?? 0)
             }
         case .windows:
             return ["five_hour", "seven_day"].map { id in
@@ -75,21 +86,24 @@ public enum IconMetrics {
                     else { missing += 1 }
                 }
                 let left = windows.compactMap(\.leftPercent)
+                let prediction = combine(enabled.filter { account in
+                    account.windows.contains { !$0.modelScoped && $0.id == id }
+                }.map(\.provider), kind: id, forecasts: forecasts)
                 return IconMetric(label: id == "five_hour" ? "session" : "weekly",
                                   leftPercent: left.isEmpty ? nil : left.reduce(0, +) / Double(left.count + missing),
-                                  missing: missing, pace: combine(enabled.filter { account in
-                                      account.windows.contains { !$0.modelScoped && $0.id == id }
-                                  }.map(\.provider), kind: id, forecasts: forecasts))
+                                  missing: missing, pace: prediction?.pace, agreement: prediction?.agreement ?? 0)
             }
         }
     }
     /// Window bars never let spare Claude capacity hide a Codex shortfall (or vice versa).
-    private static func combine(_ providers: [Provider], kind: String, forecasts: [Provider: PaceForecast]) -> Pace? {
-        let values = Set(providers).map { forecasts[$0]?.windowPaces[kind] }
+    private static func combine(_ providers: [Provider], kind: String, forecasts: [Provider: PaceForecast]) -> PacePrediction? {
+        let values = Set(providers).map { forecasts[$0]?.displayPrediction(for: kind) }
         guard !values.isEmpty, values.allSatisfy({ $0 != nil }) else { return nil }
-        if values.contains(.over) { return .over }
-        if values.allSatisfy({ $0 == .under }) { return .under }
-        return .steady
+        let predictions = values.compactMap { $0 }
+        let agreement = predictions.map(\.agreement).min() ?? 0
+        let pace: Pace = predictions.contains(where: { $0.pace == .over }) ? .over
+            : predictions.allSatisfy({ $0.pace == .under }) ? .under : .steady
+        return .init(pace: pace, agreement: agreement)
     }
 
 }

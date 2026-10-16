@@ -14,7 +14,9 @@ Time is in hours; usage is in **percentage points of one licence’s quota**. Tw
 
 A valid interval requires fresh, advancing readings on every enabled account, the same quota cycle, nondecreasing usage, and at most 15 minutes between observations. Crossing a reset discards that interval instead of inventing either negative demand or an assumed 100-point spend. Duplicate cached reads provide no evidence. A completely blocked fleet censors demand, so its flat usage is not evidence of inactivity. Historical changes can include direct clients using the same subscriptions; the quota endpoint does not identify the caller.
 
-Only the current continuous fleet configuration is used. Disabled licences add neither demand nor capacity. Same-provider plans must be known and identical: percentages alone do not identify an exchange rate between different plans. Unknown/custom quota durations, stale readings and ambiguous availability cause abstention.
+Positive quota increments establish measured activity within that coverage. Providers that report whole percentages can remain flat between increments; the duration of positive five-minute intervals is not an estimate of how long the user worked. All-zero history still abstains, except for the learned inactive-weekend case below.
+
+Only the current continuous fleet configuration is used. Disabled licences add neither demand nor capacity. Same-provider plans must be known and identical: percentages alone do not identify an exchange rate between different plans. Unknown/custom quota durations, stale readings and ambiguous availability cause abstention. A startup reading with missing plan/window metadata interrupts observation coverage, but does not erase prior evidence for the same enabled accounts; confirmed account, plan or limit changes still start a new fleet epoch. Saving an unchanged connection preserves history. Two fresh, advancing zero-usage readings measure zero demand even if an unused allowance reports a moving reset timestamp.
 
 ## 2. Two-timescale demand, with a local-time profile
 
@@ -72,21 +74,27 @@ A greedy allocation can fail even when another routing schedule succeeds. Orange
 U_k(t)=\sum_a q_{a,k}(0)+100\sum_a N_{a,k}(t).
 \]
 
-\(N\) counts the earliest possible future renewals. This envelope even banks unused quota, so it is an upper bound on true supply. If cumulative **lower-bound** demand exceeds \(U_k(t)\) at any time, a shortage is unavoidable under that demand scenario regardless of allocation. A simulation failure without this certificate stays neutral.
+\(N\) counts the earliest possible future renewals. This envelope even banks unused quota, so it is an upper bound on true supply. If cumulative demand in a scenario exceeds \(U_k(t)\) at any time, a shortage is unavoidable under that demand scenario regardless of allocation. A simulation failure without this certificate stays unclassified. Orange at full agreement means even the lower-bound demand has a shortage; muted orange means the central scenario has a shortage but lower-demand scenarios may not.
 
 ## 5. Colour decisions
 
 Define pressure as the maximum cumulative demand divided by optimistic cumulative capacity, checked along the timeline, including immediately before renewal events.
 
-| Colour | Requirement |
+The icon no longer hides every uncertain forecast behind grey. Its **hue** uses the middle sensitivity scenario: halfway between the lower and upper demand rates at each simulated time. This is a tentative estimate, not a promise that the whole band agrees.
+
+| Colour | Requirement in the displayed scenario |
 | --- | --- |
-| **Blue** | Upper-bound demand is feasible under both allocation policies and peak pressure stays below 50%. |
-| **Green** | Upper-bound demand is feasible under both policies, and lower-bound peak pressure is at least 50%. |
-| **Orange** | Even lower-bound demand breaches the optimistic supply envelope before renewal capacity can cover it. |
-| **Grey / neutral** | Missing evidence, unknown comparable capacities, ambiguous availability, or scenarios cross a colour boundary. |
+| **Blue** | Demand is feasible under both allocation policies and peak pressure stays below 50%. |
+| **Green** | Demand is feasible under both policies, with peak pressure at least 50%. |
+| **Orange** | Demand breaches the optimistic supply envelope before renewal capacity can cover it. |
+| **Grey / neutral** | Missing evidence, unknown comparable capacities, ambiguous availability, or an unclassified central scenario. |
 | **Red** | Actual measured exhaustion only; not a forecast. |
 
-In OpenAI + Claude mode, provider bar **height** shows pooled weekly capacity only: sum of weekly percentages remaining divided by the number of contributing enabled licences. Session limits do not reduce the fill. Provider bar **colours** still use the joint session/weekly forecast. Session/weekly icon bars use the corresponding joint-model constraint result; they never use spare Claude capacity to excuse a Codex bottleneck. All represented providers need a supported prediction before the combined bar takes a forecast colour. Partial readings always remain neutral. The UI shows a brief neutral reason rather than defaulting to green or warning orange from a low percentage alone.
+**Saturation** shows scenario agreement. Evaluate five equally spaced demand levels across the sensitivity envelope (0, 0.25, 0.5, 0.75, 1), using both allocation policies at each level. The agreement score is the fraction classified in the same colour as the central scenario; unclassified scenarios do not count as agreement. Apply a saturation multiplier of `0.2 + 0.8 × agreement`, preserving hue, brightness and opacity. The tooltip describes tentative, mixed or strong agreement without claiming an accuracy percentage. This is an uncalibrated sensitivity score, **not** a probability that the prediction is right. Fully observed exhaustion stays fully red; unsupported or partial readings stay grey.
+
+The diagnostic `pace` and `window_paces` fields retain the conservative whole-band decision. `prediction`, `window_predictions` and their `scenario_agreement` values describe the displayed estimate, even when `neutral_reason` is `uncertainty` for the whole band. Missing evidence still produces no prediction; six observed hours plus 1.5 recent hours remain required. If a conservative whole-band decision exists but the central routing heuristic cannot classify the scenario, that supported decision is retained.
+
+In OpenAI + Claude mode, provider bar **height** shows pooled weekly capacity only: sum of weekly percentages remaining divided by the number of contributing enabled licences. Session limits do not reduce the fill. Provider bar **colours** still use the joint session/weekly forecast. Session/weekly icon bars use the corresponding joint-model constraint result; they never use spare Claude capacity to excuse a Codex bottleneck. All represented providers need a supported prediction before the combined bar takes a forecast colour. The combined saturation uses the weakest contributing agreement. Partial readings always remain neutral. Individual accounts remain measured levels only, with no invented pacing.
 
 ## Validation boundary
 

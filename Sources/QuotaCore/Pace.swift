@@ -69,8 +69,18 @@ public enum ForecastGap: String, Sendable {
     case history, readings, capacity, activity, uncertainty
 }
 
+/// Sensitivity-scenario agreement, not a calibrated probability of future correctness.
+public struct PacePrediction: Sendable, Equatable {
+    public let pace: Pace
+    public let agreement: Double
+    public init(pace: Pace, agreement: Double) {
+        self.pace = pace
+        self.agreement = agreement.isFinite ? min(1, max(0, agreement)) : 0
+    }
+}
+
 public struct PaceForecast: Sendable {
-    /// Nil means neutral, never a quota-level fallback colour.
+    /// Consensus across the demand band. Nil can still have a tentative central prediction.
     public let pace: Pace?
     public let gap: ForecastGap?
     public let horizon: Date
@@ -78,12 +88,20 @@ public struct PaceForecast: Sendable {
     /// Peak cumulative demand / optimistic available capacity, checked before every renewal.
     public let pressureRange: ClosedRange<Double>?
     public let observedHours: Double
+    /// Valid observation coverage in the latest two actual hours, separate from older evidence.
+    public let recentObservedHours: Double
     public let windowPaces: [String: Pace]
     public let baselineDemand: [String: Double]
     public let recentDemand: [String: Double]
+    public internal(set) var prediction: PacePrediction? = nil
+    public internal(set) var windowPredictions: [String: PacePrediction] = [:]
+    public var displayPrediction: PacePrediction? { prediction ?? pace.map { .init(pace: $0, agreement: 1) } }
+    public func displayPrediction(for kind: String) -> PacePrediction? {
+        windowPredictions[kind] ?? windowPaces[kind].map { .init(pace: $0, agreement: 1) }
+    }
 
-    static func unknown(_ gap: ForecastGap, at now: Date, hours: Double = 0) -> Self {
-        .init(pace: nil, gap: gap, horizon: now, shortageAt: nil, pressureRange: nil, observedHours: hours, windowPaces: [:], baselineDemand: [:], recentDemand: [:])
+    static func unknown(_ gap: ForecastGap, at now: Date, hours: Double = 0, recentHours: Double = 0) -> Self {
+        .init(pace: nil, gap: gap, horizon: now, shortageAt: nil, pressureRange: nil, observedHours: hours, recentObservedHours: recentHours, windowPaces: [:], baselineDemand: [:], recentDemand: [:])
     }
 }
 
@@ -108,7 +126,7 @@ public enum PaceForecaster {
         let calendar: Calendar
         let now: Date
 
-        func rates(at date: Date, upper: Bool) -> [String: Double] {
+        func rates(at date: Date, scenario: Double) -> [String: Double] {
             let future = date.timeIntervalSince(now) / 3600
             let burstWeight = exp(-log(2) * future / 6)
             let weekend = calendar.isDateInWeekend(date)
@@ -130,9 +148,10 @@ public enum PaceForecaster {
                 let margin = max(baseline * 0.25, spread[kind] ?? 0) * (1 + 0.1 * sqrt(future / 24))
                 if weekend != currentWeekend && exposure < 2 {
                     // No evidence for that day type: bracket silence AND continued work; do not assume weekends off.
-                    result[kind] = upper ? max(center + margin, recent + margin) : 0
+                    result[kind] = max(center + margin, recent + margin) * scenario
                 } else {
-                    result[kind] = upper ? center + margin : max(0, center - margin)
+                    let low = max(0, center - margin)
+                    result[kind] = low + (center + margin - low) * scenario
                 }
             }
         }
@@ -165,23 +184,26 @@ public enum PaceForecaster {
         }
         let signature = accounts.map { PaceHistory.Account(id: $0.id, provider: provider, plan: $0.plan,
             windows: $0.windows.filter { !$0.modelScoped }, blocked: false) }
-        let samples = samples(history: history, provider: provider, signature: PaceHistory.signature(signature), kinds: kinds, now: now)
+        let samples = samples(history: history, provider: provider, signature: signature, kinds: kinds, now: now)
         let comparable = samples.filter { calendar.isDateInWeekend($0.midpoint) == calendar.isDateInWeekend(now) &&
             comparableAge(from: $0.start, to: now, calendar: calendar) <= 24 * hour }
         let hours = comparable.reduce(0) { $0 + $1.hours }
         let recent = samples.filter { now.timeIntervalSince($0.start) <= 2 * hour }
+        let recentHours = recent.reduce(0) { $0 + $1.hours }
         // At least six observed hours and recent coverage; never confuse asleep/offline with measured zero use.
-        guard hours >= 6, recent.reduce(0, { $0 + $1.hours }) >= 1.5,
+        guard hours >= 6, recentHours >= 1.5,
               let latest = samples.last, now.timeIntervalSince(latest.end) < 900 else {
-            return .unknown(.history, at: now, hours: hours)
+            return .unknown(.history, at: now, hours: hours, recentHours: recentHours)
         }
-        let activeHours = comparable.filter { $0.rates.values.contains { $0 > 0.01 } }.reduce(0) { $0 + $1.hours }
+        // Integer-percentage quotas can stay flat for hours between real increments. Summing
+        // only positive five-minute intervals measures endpoint precision, not activity duration.
+        let hasMeasuredActivity = comparable.contains { $0.rates.values.contains { $0 > 0.01 } }
         // Exhaustion censors demand: all-zero quota changes do not establish an idle workload.
         let weekdaySamples = samples.filter { !calendar.isDateInWeekend($0.midpoint) }
         let learnedIdleWeekend = calendar.isDateInWeekend(now) &&
             samples.filter { calendar.isDateInWeekend($0.midpoint) }.reduce(0, { $0 + $1.hours }) >= 12 &&
             weekdaySamples.contains { $0.rates.values.contains { $0 > 0.01 } }
-        guard activeHours >= 1 || learnedIdleWeekend else { return .unknown(.activity, at: now, hours: hours) }
+        guard hasMeasuredActivity || learnedIdleWeekend else { return .unknown(.activity, at: now, hours: hours, recentHours: recentHours) }
         func average(_ items: [Sample], halfLife: Double, anchor: Date? = nil, calendarAdjusted: Bool = true) -> [String: Double] {
             var sums: [String: Double] = [:], weight = 0.0
             for sample in items {
@@ -225,7 +247,7 @@ public enum PaceForecaster {
             let hi = rates[Int(Double(rates.count - 1) * 0.9)]
             spread[kind] = max((hi - lo) / 2, abs((fast[kind] ?? 0) - (base[kind] ?? 0)) * 0.25)
         }
-        guard base.values.allSatisfy({ $0 > 0.001 }) else { return .unknown(.activity, at: now, hours: hours) }
+        guard base.values.allSatisfy({ $0 > 0.001 }) else { return .unknown(.activity, at: now, hours: hours, recentHours: recentHours) }
         let demand = Demand(base: base, fast: fast, spread: spread, seasonal: seasonal, exposure: exposure,
                             reference: reference, calendar: calendar, now: now)
         // Look through every current weekly renewal, at least a whole day, at most a week.
@@ -233,9 +255,14 @@ public enum PaceForecaster {
             $0.resetsAt ?? now.addingTimeInterval(7 * 86400)
         }.max()
         let horizon = max(now.addingTimeInterval(24 * hour), lastWeekly ?? now)
-        let low = simulate(accounts: accounts, demand: demand, now: now, until: horizon, upper: false, balanced: false)
-        let high = simulate(accounts: accounts, demand: demand, now: now, until: horizon, upper: true, balanced: false)
-        let fair = simulate(accounts: accounts, demand: demand, now: now, until: horizon, upper: true, balanced: true)
+        // Evaluate the same sensitivity envelope at five equally spaced demand levels. Check
+        // both routing policies; a greedy failure without a deficit certificate stays unclassified.
+        let scenarios = (0...4).map { step -> (Simulation, Simulation) in
+            let level = Double(step) / 4
+            return (simulate(accounts: accounts, demand: demand, now: now, until: horizon, scenario: level, balanced: false),
+                    simulate(accounts: accounts, demand: demand, now: now, until: horizon, scenario: level, balanced: true))
+        }
+        let low = scenarios[0].0, high = scenarios[4].0, fair = scenarios[4].1
         // Orange requires a mathematical pooled-capacity deficit even under LOW demand. A routing heuristic
         // failing is NOT proof of unavoidable exhaustion. Blue/green require both feasible routing policies.
         let pace: Pace?
@@ -253,9 +280,26 @@ public enum PaceForecaster {
                 else if (low.pressures[kind] ?? 0) >= 0.5 { windowPaces[kind] = .steady }
             }
         }
-        return .init(pace: pace, gap: pace == nil ? .uncertainty : nil, horizon: horizon,
+        func classify(_ pair: (Simulation, Simulation), kind: String? = nil) -> Pace? {
+            if let kind {
+                if pair.0.deficits[kind] != nil { return .over }
+            } else if pair.0.unavoidableShortage != nil { return .over }
+            guard pair.0.shortage == nil, pair.1.shortage == nil else { return nil }
+            let pressure = kind.map { max(pair.0.pressures[$0] ?? 0, pair.1.pressures[$0] ?? 0) }
+                ?? max(pair.0.pressure, pair.1.pressure)
+            return pressure < 0.5 ? .under : .steady
+        }
+        func prediction(kind: String? = nil) -> PacePrediction? {
+            guard let center = classify(scenarios[2], kind: kind) else { return nil }
+            let matches = scenarios.filter { classify($0, kind: kind) == center }.count
+            return .init(pace: center, agreement: Double(matches) / Double(scenarios.count))
+        }
+        var result = PaceForecast(pace: pace, gap: pace == nil ? .uncertainty : nil, horizon: horizon,
                      shortageAt: pace == .over ? low.unavoidableShortage : nil,
-                     pressureRange: min(low.pressure, high.pressure)...max(low.pressure, high.pressure, fair.pressure), observedHours: hours, windowPaces: windowPaces, baselineDemand: base, recentDemand: fast)
+                     pressureRange: min(low.pressure, high.pressure)...max(low.pressure, high.pressure, fair.pressure), observedHours: hours, recentObservedHours: recentHours, windowPaces: windowPaces, baselineDemand: base, recentDemand: fast)
+        result.prediction = prediction()
+        result.windowPredictions = kinds.reduce(into: [:]) { values, kind in values[kind] = prediction(kind: kind) }
+        return result
     }
 
     private static func comparableAge(from start: Date, to end: Date, calendar: Calendar) -> Double {
@@ -271,13 +315,25 @@ public enum PaceForecaster {
         return total
     }
 
-    private static func samples(history: PaceHistory, provider: Provider, signature: [String], kinds: Set<String>, now: Date) -> [Sample] {
+    private static func samples(history: PaceHistory, provider: Provider, signature: [PaceHistory.Account], kinds: Set<String>, now: Date) -> [Sample] {
         var result: [Sample] = []
         // Only the current uninterrupted enabled-fleet epoch. Quota changes can include direct-client use.
+        let ids = signature.map(\.id).sorted()
+        let plan = signature.first?.plan
         var previous: PaceHistory.Frame?
         for frame in history.frames where frame.date <= now {
             let accounts = frame.accounts.filter { $0.provider == provider }
-            guard PaceHistory.signature(accounts) == signature else { previous = nil; result = []; continue }
+            guard accounts.map(\.id).sorted() == ids,
+                  !accounts.contains(where: { account in
+                      (account.plan != nil && account.plan != plan) ||
+                      (!account.windows.isEmpty && Set(account.windows.map(\.id)) != kinds)
+                  }) else { previous = nil; result = []; continue }
+            // Startup and failed probes can lack metadata without changing the enabled fleet.
+            // Keep earlier evidence, but never measure across the unreadable interval. This also
+            // recovers history already written by older app versions without editing the file.
+            guard accounts.allSatisfy({ $0.plan != nil && !$0.windows.isEmpty }) else {
+                previous = nil; continue
+            }
             defer { previous = frame }
             guard let previous else { continue }
             let interval = frame.date.timeIntervalSince(previous.date)
@@ -304,6 +360,9 @@ public enum PaceForecaster {
     }
 
     private static func sameCycle(_ a: QuotaWindow, _ b: QuotaWindow) -> Bool {
+        // An unused allowance can report a sliding reset until its clock starts. Two fresh,
+        // advancing zero readings still measure zero demand; they are not a spent-cycle reset.
+        if a.usedPercent == 0 && b.usedPercent == 0 { return true }
         if let x = a.resetsAt, let y = b.resetsAt { return abs(x.timeIntervalSince(y)) < 60 && x > b.observedAt }
         return a.resetsAt == nil && a.usedPercent == 0 // starting a previously idle cycle is observable
     }
@@ -326,7 +385,7 @@ public enum PaceForecaster {
     }
 
     private static func simulate(accounts: [SubscriptionAccount], demand: Demand, now: Date, until end: Date,
-                                 upper: Bool, balanced: Bool) -> Simulation {
+                                 scenario: Double, balanced: Bool) -> Simulation {
         var supply = accounts.map { account in
             Supply(limits: Dictionary(uniqueKeysWithValues: account.windows.filter { !$0.modelScoped }.map {
                 ($0.id, Limit(left: $0.leftPercent ?? 0, reset: $0.resetsAt, duration: $0.duration ?? 0))
@@ -367,7 +426,7 @@ public enum PaceForecaster {
             let nextHour = demand.calendar.dateInterval(of: .hour, for: time)?.end ?? time.addingTimeInterval(hour)
             let next = min(end, time.addingTimeInterval(300), events.min() ?? end, nextGrant, nextHour)
             let dt = next.timeIntervalSince(time) / hour
-            let rates = demand.rates(at: time, upper: upper)
+            let rates = demand.rates(at: time, scenario: scenario)
             let ready = supply.indices.filter { supply[$0].cooldown.map { $0 <= time } ?? true }
             // Each account can accept only the workload allowed by BOTH its session and its weekly balance.
             func room(_ i: Int) -> Double {
