@@ -3,19 +3,28 @@
   "source_sha256": "0f5ac0b319465616d2283df7b35d95b783c46e8b9e001b1068c09f1604db980d",
   "images": {
     "overview.png": {
-      "sha256": "6c35b2dec6c9145b463f9409e531d2bfaf43f883373d7bb633db0d25fe5932e1",
-      "width": 720,
-      "height": 834
+      "sha256": "43be350a28ffae695aec7891616d20fe5555be33ace36b9e253eec0a64e07741",
+      "width": 3456,
+      "height": 2160
     },
     "account.png": {
-      "sha256": "bd7d0ab3b04b5ee7aacb29d9c6329a59f828255d7d5cc55df25cdf779a0838da",
-      "width": 720,
-      "height": 600
+      "sha256": "d741756c0d1fed4924770147519e8e08d4c6e059a131e994e068a7659a28198f",
+      "width": 3456,
+      "height": 2160
     },
     "settings.png": {
-      "sha256": "37e78efca1cf6057f11e6f0825c4d8ba27421d0d2aea7600501e8c72ff3ddcb0",
-      "width": 720,
-      "height": 1346
+      "sha256": "23a198a80ef16c822d3222ad6a8f84f09b5bef2d1d8466f530ef9085fcd9e82d",
+      "width": 3456,
+      "height": 2160
     }
+  },
+  "capture": {
+    "application": "CleanShot X",
+    "framing": "Native menu-bar UI on the user-approved desktop background",
+    "overview": "Installed app with account names hidden",
+    "account_and_settings": "Isolated native demo with fictional accounts; fixture-only popup anchor moved to the upper right",
+    "approved": "2026-10-16",
+    "demo_source_commit": "f082682",
+    "compatibility_review": "Nightly 49bfbc8 changes forecast internals, menu-icon saturation and hover help; captured demo panels have no learned forecast and their visible controls are unchanged."
   }
 }
